@@ -6,9 +6,10 @@ COMPILEDB=compiledb
 SED=sed
 ELFTARGET=$(BUILD_DIR)/$(TARGET).elf
 BINTARGET=$(BUILD_DIR)/$(TARGET).bin
+JOBCNT=-j8
 
 all:
-	$(MAKE) -C $(BUILD_DIR) all
+	$(MAKE) -C $(BUILD_DIR) $(JOBCNT) all
 	$(OBJCOPY) -O binary $(ELFTARGET) $(BINTARGET)
 
 .PHONY: flash
@@ -18,7 +19,7 @@ flash: all
 
 .PHONY: compiledb
 compiledb: clean
-	$(COMPILEDB) -o ./compile_commands.json make -j8 all
+	$(COMPILEDB) -o ./compile_commands.json make $(JOBCNT) all
 	$(SED) 's/-fcyclomatic-complexity/-I\/usr\/include/g' -i ./compile_commands.json
 
 .PHONY: clean
