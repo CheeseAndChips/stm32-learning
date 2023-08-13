@@ -13,9 +13,17 @@
 #define DELAY_I 70
 #define DELAY_J 410
 
-#define ONEWIRE_LOW()
-#define ONEWIRE_RELEASE()
-#define ONEWIRE_READ() 0
+#ifndef ONEWIRE_LOW
+#error "ONEWIRE_LOW not defined"
+#endif
+
+#ifndef ONEWIRE_RELEASE
+#error "ONEWIRE_RELEASE not defined"
+#endif
+
+#ifndef ONEWIRE_READ
+#error "ONEWIRE_READ not defined"
+#endif
 
 void onewire_delay_us(const uint32_t us) {
 	if(us < 1) {
