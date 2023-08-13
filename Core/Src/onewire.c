@@ -9,7 +9,7 @@
 #define DELAY_E 9
 #define DELAY_F 55
 #define DELAY_G 0
-#define DELAY_H 480
+#define DELAY_H 490
 #define DELAY_I 70
 #define DELAY_J 410
 
@@ -28,6 +28,7 @@
 /*
  * Private function prototypes
  */
+static void onewire_delay_us(const uint32_t us);
 static void onewire_write_1(void);
 static void onewire_write_0(void);
 static uint8_t onewire_read_bit(void);
@@ -98,6 +99,16 @@ static uint8_t onewire_reset(void) {
 /*
  * Public functions
  */
+void onewire_init(TIM_HandleTypeDef *htim_) {
+	htim = htim_;
+}
+
+void onewire_run_test(void) {
+	onewire_reset();
+	HAL_Delay(1);
+	onewire_reset();
+}
+
 void onewire_write_byte(uint8_t byte) {
 	for (uint8_t i = 0; i < 8; i++) {
 		if (byte & 0x80) {
@@ -109,10 +120,6 @@ void onewire_write_byte(uint8_t byte) {
 	}
 }
 
-void onewire_run_test(void) {
-	onewire_write_byte(0x43);
-}
-
-void onewire_init(TIM_HandleTypeDef *htim_) {
-	htim = htim_;
+void onewire_search(void) {
+	
 }
