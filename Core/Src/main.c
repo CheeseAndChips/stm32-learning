@@ -248,6 +248,9 @@ static void MX_GPIO_Init(void) {
 	HAL_GPIO_WritePin(USB_PowerSwitchOn_GPIO_Port, USB_PowerSwitchOn_Pin,
 			GPIO_PIN_RESET);
 
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(ONEWIRE_OUT_GPIO_Port, ONEWIRE_OUT_Pin, GPIO_PIN_SET);
+
 	/*Configure GPIO pin : USER_Btn_Pin */
 	GPIO_InitStruct.Pin = USER_Btn_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
@@ -273,6 +276,19 @@ static void MX_GPIO_Init(void) {
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	HAL_GPIO_Init(USB_OverCurrent_GPIO_Port, &GPIO_InitStruct);
+
+	/*Configure GPIO pin : ONEWIRE_OUT_Pin */
+	GPIO_InitStruct.Pin = ONEWIRE_OUT_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	HAL_GPIO_Init(ONEWIRE_OUT_GPIO_Port, &GPIO_InitStruct);
+
+	/*Configure GPIO pin : ONEWIRE_IN_Pin */
+	GPIO_InitStruct.Pin = ONEWIRE_IN_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	HAL_GPIO_Init(ONEWIRE_IN_GPIO_Port, &GPIO_InitStruct);
 
 	/* USER CODE BEGIN MX_GPIO_Init_2 */
 	/* USER CODE END MX_GPIO_Init_2 */

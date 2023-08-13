@@ -87,6 +87,10 @@ void Error_Handler(void);
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
 #define TCK_GPIO_Port GPIOA
+#define ONEWIRE_OUT_Pin GPIO_PIN_10
+#define ONEWIRE_OUT_GPIO_Port GPIOC
+#define ONEWIRE_IN_Pin GPIO_PIN_11
+#define ONEWIRE_IN_GPIO_Port GPIOC
 #define LD2_Pin GPIO_PIN_7
 #define LD2_GPIO_Port GPIOB
 
