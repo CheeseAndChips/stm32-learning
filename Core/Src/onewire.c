@@ -25,29 +25,56 @@
 #error "ONEWIRE_READ not defined"
 #endif
 
-void onewire_delay_us(const uint32_t us) {
-	if(us < 1) {
+/*
+ * Private function prototypes
+ */
+static void onewire_write_1(void);
+static void onewire_write_0(void);
+static uint8_t onewire_read_bit(void);
+static uint8_t onewire_reset(void);
+
+/*
+ * Private variables
+ */
+static volatile uint16_t onewire_delay_counter = 0;
+static TIM_HandleTypeDef *htim = NULL;
+
+/* 
+ * Private functions
+ */
+static void onewire_delay_us(const uint32_t us) {
+//#ifdef DEBUG
+//	assert(htim != NULL);
+//#endif
+	if (us == 0) {
 		return;
 	}
 
-	assert(0);
+	onewire_delay_counter = us;
+	htim->Instance->CNT = 0;
+	HAL_TIM_Base_Start(htim);
+
+	while (htim->Instance->CNT < us)
+		;
+
+	HAL_TIM_Base_Stop(htim);
 }
 
-void onewire_write_1(void) {
+static void onewire_write_1(void) {
 	ONEWIRE_LOW();
 	onewire_delay_us(DELAY_A);
 	ONEWIRE_RELEASE();
 	onewire_delay_us(DELAY_B);
 }
 
-void onewire_write_0(void) {
+static void onewire_write_0(void) {
 	ONEWIRE_LOW();
 	onewire_delay_us(DELAY_C);
 	ONEWIRE_RELEASE();
 	onewire_delay_us(DELAY_D);
 }
 
-uint8_t onewire_read_bit(void) {
+static uint8_t onewire_read_bit(void) {
 	ONEWIRE_LOW();
 	onewire_delay_us(DELAY_A);
 	ONEWIRE_RELEASE();
@@ -57,7 +84,7 @@ uint8_t onewire_read_bit(void) {
 	return result;
 }
 
-uint8_t onewire_reset(void) {
+static uint8_t onewire_reset(void) {
 	onewire_delay_us(DELAY_G);
 	ONEWIRE_LOW();
 	onewire_delay_us(DELAY_H);
@@ -66,4 +93,26 @@ uint8_t onewire_reset(void) {
 	uint8_t result = ONEWIRE_READ();
 	onewire_delay_us(DELAY_J);
 	return result;
+}
+
+/*
+ * Public functions
+ */
+void onewire_write_byte(uint8_t byte) {
+	for (uint8_t i = 0; i < 8; i++) {
+		if (byte & 0x80) {
+			onewire_write_1();
+		} else {
+			onewire_write_0();
+		}
+		byte <<= 1;
+	}
+}
+
+void onewire_run_test(void) {
+	onewire_write_byte(0x43);
+}
+
+void onewire_init(TIM_HandleTypeDef *htim_) {
+	htim = htim_;
 }

@@ -46,8 +46,8 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-#define ONEWIRE_LOW() (ONEWIRE_OUT_GPIO_Port->BSRR |= ONEWIRE_OUT_Pin << 16)
-#define ONEWIRE_RELEASE() (ONEWIRE_OUT_GPIO_Port->BSRR |= ONEWIRE_OUT_Pin)
+#define ONEWIRE_LOW() (ONEWIRE_OUT_GPIO_Port->BSRR = ONEWIRE_OUT_Pin << 16)
+#define ONEWIRE_RELEASE() (ONEWIRE_OUT_GPIO_Port->BSRR = ONEWIRE_OUT_Pin)
 #define ONEWIRE_READ() ((ONEWIRE_IN_GPIO_Port->IDR & ONEWIRE_IN_Pin) != 0)
 /* USER CODE END EM */
 

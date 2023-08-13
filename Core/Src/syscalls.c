@@ -62,19 +62,19 @@ __attribute__((weak)) int _read(int file, char *ptr, int len) {
 	(void) file;
 
 	int i = 0;
-	while(1) {
+	while (1) {
 		int ch = __io_getchar();
-		if(ch != 8) {
+		if (ch != 8) {
 			ptr[i++] = ch;
 			__io_putchar(ch);
-		} else if(i > 0) {
+		} else if (i > 0) {
 			i--;
 			__io_putchar(8);
 			__io_putchar(' ');
 			__io_putchar(8);
 		}
 
-		if(ch == '\n' || ch == '\r' || i >= len) {
+		if (ch == '\n' || ch == '\r' || i >= len) {
 			return i;
 		}
 	}
