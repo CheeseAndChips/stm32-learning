@@ -109,6 +109,11 @@ int main(void) {
 	MX_TIM6_Init();
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
+#ifdef __TIMESTAMP__
+	printf("Build date: %s\n", __TIMESTAMP__);
+#else
+	#warning "__TIMESTAMP__ not defined"
+#endif
 	onewire_init(&htim6);
 	HAL_Delay(50);
 	printf("Running test\n");
