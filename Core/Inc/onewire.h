@@ -10,7 +10,7 @@
 #define ONEWIRE_READ() ((ONEWIRE_IN_GPIO_Port->IDR & ONEWIRE_IN_Pin) != 0)
 
 void onewire_init(TIM_HandleTypeDef *htim_);
-void onewire_run_test(void);
+uint64_t onewire_get_single_address(void);
 void onewire_write_byte(uint8_t byte);
 
 typedef struct {

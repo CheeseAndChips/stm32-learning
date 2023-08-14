@@ -112,7 +112,13 @@ int main(void) {
 	onewire_init(&htim6);
 	HAL_Delay(50);
 	printf("Running test\n");
-	onewire_run_test();
+	uint64_t rom = onewire_get_single_address();
+	uint8_t *b = (uint8_t*) &rom;
+	printf("ROM: 0x");
+	for (int i = 7; i >= 0; i--) {
+		printf("%02x", b[i]);
+	}
+	printf("\n");
 	/* USER CODE END 2 */
 
 	/* Infinite loop */

@@ -1,4 +1,6 @@
 // https://www.analog.com/en/technical-articles/1wire-communication-through-software.html
+#include <stdio.h>
+#include <inttypes.h>
 #include "onewire.h"
 #include "main.h"
 
@@ -31,6 +33,7 @@
 static void onewire_delay_us(const uint32_t us);
 static void onewire_write_1(void);
 static void onewire_write_0(void);
+static void onewire_write_bit(uint8_t bit);
 static uint8_t onewire_read_bit(void);
 static uint8_t onewire_reset(void);
 
@@ -55,7 +58,7 @@ static void onewire_delay_us(const uint32_t us) {
 	htim->Instance->CNT = 0;
 	HAL_TIM_Base_Start(htim);
 
-	while (htim->Instance->CNT < us)
+	while (htim->Instance->CNT < us - 1)
 		;
 
 	HAL_TIM_Base_Stop(htim);
@@ -73,6 +76,14 @@ static void onewire_write_0(void) {
 	onewire_delay_us(DELAY_C);
 	ONEWIRE_RELEASE();
 	onewire_delay_us(DELAY_D);
+}
+
+static void onewire_write_bit(uint8_t bit) {
+	if (bit) {
+		onewire_write_1();
+	} else {
+		onewire_write_0();
+	}
 }
 
 static uint8_t onewire_read_bit(void) {
@@ -103,10 +114,22 @@ void onewire_init(TIM_HandleTypeDef *htim_) {
 	htim = htim_;
 }
 
-void onewire_run_test(void) {
+//TODO: check CRC
+//returns 0 if device cnt on bus != 1
+uint64_t onewire_get_single_address(void) {
 	onewire_reset();
-	HAL_Delay(1);
-	onewire_reset();
+	onewire_write_byte(0x0f);
+	uint64_t rom = 0;
+	for(uint8_t i = 0; i < 64; i++) {
+		uint8_t b1 = onewire_read_bit();
+		uint8_t b2 = onewire_read_bit();
+		if(b1 == b2) {
+			return 0;
+		}
+		rom = (rom << 1) | b1;
+		onewire_write_bit(b1);
+	}
+	return rom;
 }
 
 void onewire_write_byte(uint8_t byte) {
