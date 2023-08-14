@@ -9,7 +9,7 @@
 #define DELAY_E 9
 #define DELAY_F 55
 #define DELAY_G 0
-#define DELAY_H 490
+#define DELAY_H 480
 #define DELAY_I 70
 #define DELAY_J 410
 
