@@ -109,14 +109,21 @@ int main(void) {
 	MX_TIM6_Init();
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
+
 	onewire_init(&htim6);
+
 	uint64_t rom = onewire_get_single_address();
+	printf("Found ROM: ");
 	for(int i = 0; i < 8; i++) {
 		printf("%02x", (uint8_t)(rom >> ((7 - i) * 8)));
 	}
 	printf("\n");
+
+	if(!rom)
+		Error_Handler();
+
 	while(1) {
-		uint16_t temp_raw = onewire_read_temp(rom);
+		uint16_t temp_raw = onewire_read_temperature(rom);
 		int temp = temp_raw >> 4;
 		printf("Temperature: %i C\n", temp);
 	}

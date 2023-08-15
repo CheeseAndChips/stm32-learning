@@ -43,6 +43,10 @@ static void onewire_write_0(void);
 static void onewire_write_bit(uint8_t bit);
 static uint8_t onewire_read_bit(void);
 static uint8_t onewire_reset(void);
+static void onewire_write_byte(uint8_t byte);
+static void onewire_match_rom(uint64_t rom);
+static uint8_t onewire_calculate_crc(void *src, uint8_t byte_cnt);
+static uint8_t onewire_read_scratchpad(uint64_t rom, uint8_t dest[8]);
 
 /*
  * Private variables
@@ -114,32 +118,7 @@ static uint8_t onewire_reset(void) {
 	return result;
 }
 
-/*
- * Public functions
- */
-void onewire_init(TIM_HandleTypeDef *htim_) {
-	htim = htim_;
-}
-
-//TODO: check CRC
-//returns 0 if device cnt on bus != 1
-uint64_t onewire_get_single_address(void) {
-	onewire_reset();
-	onewire_write_byte(ONEWIRE_SEARCH);
-	uint64_t rom = 0;
-	for(uint8_t i = 0; i < 64; i++) {
-		uint8_t b1 = onewire_read_bit();
-		uint8_t b2 = onewire_read_bit();
-		if(b1 == b2) {
-			return 0;
-		}
-		rom = (rom >> 1) | ((uint64_t)b1 << 63);
-		onewire_write_bit(b1);
-	}
-	return rom;
-}
-
-void onewire_write_byte(uint8_t byte) {
+static void onewire_write_byte(uint8_t byte) {
 	for (uint8_t i = 0; i < 8; i++) {
 		if (byte & 1) {
 			onewire_write_1();
@@ -150,7 +129,17 @@ void onewire_write_byte(uint8_t byte) {
 	}
 }
 
-uint8_t onewire_calculate_crc(void *src, uint8_t byte_cnt) {
+
+static void onewire_match_rom(uint64_t rom) {
+	onewire_reset();
+	onewire_write_byte(ONEWIRE_MATCH_ROM);
+
+	for(int i = 0; i < 8; i++) {
+		onewire_write_byte(((uint8_t*)&rom)[i]);
+	}
+}
+
+static uint8_t onewire_calculate_crc(void *src, uint8_t byte_cnt) {
 	uint8_t crc = 0;
 	for(size_t byte = 0; byte < byte_cnt; byte++) {
 		uint8_t data = ((uint8_t*)src)[byte_cnt - 1 -byte];
@@ -167,16 +156,7 @@ uint8_t onewire_calculate_crc(void *src, uint8_t byte_cnt) {
 	return crc;
 }
 
-void onewire_match_rom(uint64_t rom) {
-	onewire_reset();
-	onewire_write_byte(ONEWIRE_MATCH_ROM);
-
-	for(int i = 0; i < 8; i++) {
-		onewire_write_byte(((uint8_t*)&rom)[i]);
-	}
-}
-
-uint8_t onewire_read_scratchpad(uint64_t rom, uint8_t dest[8]) {
+static uint8_t onewire_read_scratchpad(uint64_t rom, uint8_t dest[8]) {
 	onewire_match_rom(rom);
 
 	onewire_write_byte(ONEWIRE_CMD_READ_SCRATCHPAD);
@@ -202,6 +182,31 @@ uint8_t onewire_read_scratchpad(uint64_t rom, uint8_t dest[8]) {
 	return 1;
 }
 
+/*
+ * Public functions
+ */
+void onewire_init(TIM_HandleTypeDef *htim_) {
+	htim = htim_;
+}
+
+//TODO: check CRC
+//returns 0 if device cnt on bus != 1
+uint64_t onewire_get_single_address(void) {
+	onewire_reset();
+	onewire_write_byte(ONEWIRE_SEARCH);
+	uint64_t rom = 0;
+	for(uint8_t i = 0; i < 64; i++) {
+		uint8_t b1 = onewire_read_bit();
+		uint8_t b2 = onewire_read_bit();
+		if(b1 == b2) {
+			return 0;
+		}
+		rom = (rom >> 1) | ((uint64_t)b1 << 63);
+		onewire_write_bit(b1);
+	}
+	return rom;
+}
+
 void onewire_request_conversion(uint64_t rom) {
 	onewire_match_rom(rom);
 
@@ -212,7 +217,7 @@ void onewire_request_conversion(uint64_t rom) {
 	}
 }
 
-uint16_t onewire_read_temp(uint64_t rom) {
+uint16_t onewire_read_temperature(uint64_t rom) {
 	uint8_t scratchpad[8];
 	onewire_request_conversion(rom);
 	if(!onewire_read_scratchpad(rom, scratchpad)) {

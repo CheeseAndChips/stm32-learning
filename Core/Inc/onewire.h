@@ -11,12 +11,6 @@
 
 void onewire_init(TIM_HandleTypeDef *htim_);
 uint64_t onewire_get_single_address(void);
-void onewire_write_byte(uint8_t byte);
-uint16_t onewire_read_temp(uint64_t rom);
-
-typedef struct {
-	uint8_t devices_found;
-	uint64_t devices[64];
-} onewire_search_result;
+uint16_t onewire_read_temperature(uint64_t rom);
 
 #endif /* INC_ONEWIRE_H_ */
