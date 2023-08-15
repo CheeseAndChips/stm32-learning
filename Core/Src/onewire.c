@@ -1,6 +1,7 @@
 // https://www.analog.com/en/technical-articles/1wire-communication-through-software.html
 #include <stdio.h>
 #include <inttypes.h>
+#include <string.h>
 #include "onewire.h"
 #include "main.h"
 
@@ -217,12 +218,44 @@ void onewire_request_conversion(uint64_t rom) {
 	}
 }
 
-uint16_t onewire_read_temperature(uint64_t rom) {
+uint8_t onewire_get_request_status() {
+	return onewire_read_bit();
+}
+
+int16_t onewire_read_temperature(uint64_t rom) {
 	uint8_t scratchpad[8];
-	onewire_request_conversion(rom);
 	if(!onewire_read_scratchpad(rom, scratchpad)) {
 		return 0;
 	}
 
 	return (scratchpad[6] << 8) | scratchpad[7];
 }
+
+void onewire_format_temperature(int16_t temp, char *dest, size_t len) {
+	int16_t temp_whole = temp / 16;
+	int16_t temp_frac = temp & 0xf;
+
+	const uint16_t fractions[] = {10000 / 16, 10000 / 8, 10000 / 4, 10000 / 2};
+	uint16_t fractional_sum = 0;
+	for(int i = 0; i < 4; i++) {
+		fractional_sum += fractions[i] * ((temp_frac >> i) & 1);
+	}
+
+	if(temp < 0) {
+		if(fractional_sum)
+			fractional_sum = 10000 - fractional_sum;
+
+		snprintf(dest, len, "-%d.%04d", -temp_whole, fractional_sum);
+	} else {
+		snprintf(dest, len, "%d.%04d", temp_whole, fractional_sum);
+	}
+
+	for(size_t i = strlen(dest) - 1; i > 0; i--) {
+		if(dest[i] == '0' && dest[i - 1] != '.') {
+			dest[i] = '\0';
+		} else {
+			break;
+		}
+	}
+}
+

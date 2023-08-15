@@ -109,7 +109,6 @@ int main(void) {
 	MX_TIM6_Init();
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
-
 	onewire_init(&htim6);
 
 	uint64_t rom = onewire_get_single_address();
@@ -121,17 +120,21 @@ int main(void) {
 
 	if(!rom)
 		Error_Handler();
-
-	while(1) {
-		uint16_t temp_raw = onewire_read_temperature(rom);
-		int temp = temp_raw >> 4;
-		printf("Temperature: %i C\n", temp);
-	}
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
+	char temp_str[32];
 	while (1) {
+		onewire_request_conversion(rom);
+		while(onewire_get_request_status() == 0) {
+			//wait for conversion to finish
+			HAL_Delay(1);
+		}
+		int16_t temp_raw = onewire_read_temperature(rom);
+		float temp_float = temp_raw / 16.0;
+		onewire_format_temperature(temp_raw, temp_str, sizeof(temp_str));
+		printf("Temperature raw: %i, float: %.4f, float2: %s\n", temp_raw, temp_float, temp_str);
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
