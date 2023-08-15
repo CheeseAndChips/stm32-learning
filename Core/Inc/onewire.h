@@ -22,6 +22,6 @@ void onewire_request_conversion(uint64_t rom);
 uint8_t onewire_get_request_status();
 int16_t onewire_read_temperature(uint64_t rom);
 void onewire_format_temperature(int16_t temp, char *dest, size_t len);
-void onewire_set_resolution(uint64_t rom, onewire_resolution resolution);
+uint8_t onewire_set_resolution(uint64_t rom, onewire_resolution resolution);
 
 #endif /* INC_ONEWIRE_H_ */

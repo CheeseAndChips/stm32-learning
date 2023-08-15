@@ -152,9 +152,13 @@ int main(void) {
 
 		if(!requested) {
 			if(resolution_changed) {
-				resolution_changed = 0;
-				onewire_set_resolution(rom, current_resolution);
-				printf("Updated resolution\n");
+				if(!onewire_set_resolution(rom, current_resolution)) {
+					printf("Failed setting resolution\n");
+					HAL_Delay(1000);
+				} else {
+					resolution_changed = 0;
+					printf("Updated resolution\n");
+				}
 			}
 			onewire_request_conversion(rom);
 			requested = 1;
