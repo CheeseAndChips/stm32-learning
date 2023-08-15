@@ -125,16 +125,46 @@ int main(void) {
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	char temp_str[32];
+	onewire_resolution current_resolution = ONEWIRE_RESOLUTION_9BIT;
+	uint8_t requested = 0;
+	uint8_t resolution_changed = 1;
+	uint32_t next_change = 0;
+	
 	while (1) {
-		onewire_request_conversion(rom);
-		while(onewire_get_request_status() == 0) {
-			//wait for conversion to finish
-			HAL_Delay(1);
+		if(HAL_GetTick() >= next_change && HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin) == GPIO_PIN_SET) {
+			next_change = HAL_GetTick() + 1000;
+			resolution_changed = 1;
+			switch(current_resolution) {
+				case ONEWIRE_RESOLUTION_9BIT:
+					current_resolution = ONEWIRE_RESOLUTION_10BIT;
+					break;
+				case ONEWIRE_RESOLUTION_10BIT:
+					current_resolution = ONEWIRE_RESOLUTION_11BIT;
+					break;
+				case ONEWIRE_RESOLUTION_11BIT:
+					current_resolution = ONEWIRE_RESOLUTION_12BIT;
+					break;
+				case ONEWIRE_RESOLUTION_12BIT:
+					current_resolution = ONEWIRE_RESOLUTION_9BIT;
+					break;
+			}
 		}
-		int16_t temp_raw = onewire_read_temperature(rom);
-		float temp_float = temp_raw / 16.0;
-		onewire_format_temperature(temp_raw, temp_str, sizeof(temp_str));
-		printf("Temperature raw: %i, float: %.4f, float2: %s\n", temp_raw, temp_float, temp_str);
+
+		if(!requested) {
+			if(resolution_changed) {
+				resolution_changed = 0;
+				onewire_set_resolution(rom, current_resolution);
+				printf("Updated resolution\n");
+			}
+			onewire_request_conversion(rom);
+			requested = 1;
+		} else if(onewire_get_request_status()) {
+			requested = 0;
+			int16_t temp_raw = onewire_read_temperature(rom);
+			float temp_float = temp_raw / 16.0;
+			onewire_format_temperature(temp_raw, temp_str, sizeof(temp_str));
+			printf("Temperature raw: %i, float: %.4f, float2: %s\n", temp_raw, temp_float, temp_str);
+		}
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */

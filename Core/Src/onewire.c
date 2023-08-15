@@ -254,3 +254,13 @@ void onewire_format_temperature(int16_t temp, char *dest, size_t len) {
 	}
 }
 
+void onewire_set_resolution(uint64_t rom, onewire_resolution resolution) {
+	uint8_t scratchpad[8];
+	onewire_read_scratchpad(rom, scratchpad);
+	scratchpad[3] = resolution;
+	onewire_match_rom(rom);
+	onewire_write_byte(ONEWIRE_CMD_WRITE_SCRATCHPAD);
+	for(int i = 2; i >= 0; i--) {
+		onewire_write_byte(scratchpad[3 + i]);
+	}
+}
