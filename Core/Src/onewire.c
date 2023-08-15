@@ -210,12 +210,7 @@ uint64_t onewire_get_single_address(void) {
 
 void onewire_request_conversion(uint64_t rom) {
 	onewire_match_rom(rom);
-
 	onewire_write_byte(ONEWIRE_CMD_CONVERT_T);
-	while(onewire_read_bit() == 0) {
-		//wait for conversion to finish
-		HAL_Delay(1);
-	}
 }
 
 uint8_t onewire_get_request_status() {
