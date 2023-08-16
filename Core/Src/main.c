@@ -42,6 +42,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+SPI_HandleTypeDef hspi1;
+
 TIM_HandleTypeDef htim6;
 
 UART_HandleTypeDef huart3;
@@ -58,6 +60,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
 static void MX_TIM6_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -107,18 +110,19 @@ int main(void) {
 	MX_USART3_UART_Init();
 	MX_USB_OTG_FS_PCD_Init();
 	MX_TIM6_Init();
+	MX_SPI1_Init();
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
 	onewire_init(&htim6);
 
 	uint64_t rom = onewire_get_single_address();
 	printf("Found ROM: ");
-	for(int i = 0; i < 8; i++) {
-		printf("%02x", (uint8_t)(rom >> ((7 - i) * 8)));
+	for (int i = 0; i < 8; i++) {
+		printf("%02x", (uint8_t) (rom >> ((7 - i) * 8)));
 	}
 	printf("\n");
 
-	if(!rom)
+	if (!rom)
 		Error_Handler();
 	/* USER CODE END 2 */
 
@@ -129,30 +133,32 @@ int main(void) {
 	uint8_t requested = 0;
 	uint8_t resolution_changed = 1;
 	uint32_t next_change = 0;
-	
+
 	while (1) {
-		if(HAL_GetTick() >= next_change && HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin) == GPIO_PIN_SET) {
+		if (HAL_GetTick() >= next_change
+				&& HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin)
+						== GPIO_PIN_SET) {
 			next_change = HAL_GetTick() + 1000;
 			resolution_changed = 1;
-			switch(current_resolution) {
-				case ONEWIRE_RESOLUTION_9BIT:
-					current_resolution = ONEWIRE_RESOLUTION_10BIT;
-					break;
-				case ONEWIRE_RESOLUTION_10BIT:
-					current_resolution = ONEWIRE_RESOLUTION_11BIT;
-					break;
-				case ONEWIRE_RESOLUTION_11BIT:
-					current_resolution = ONEWIRE_RESOLUTION_12BIT;
-					break;
-				case ONEWIRE_RESOLUTION_12BIT:
-					current_resolution = ONEWIRE_RESOLUTION_9BIT;
-					break;
+			switch (current_resolution) {
+			case ONEWIRE_RESOLUTION_9BIT:
+				current_resolution = ONEWIRE_RESOLUTION_10BIT;
+				break;
+			case ONEWIRE_RESOLUTION_10BIT:
+				current_resolution = ONEWIRE_RESOLUTION_11BIT;
+				break;
+			case ONEWIRE_RESOLUTION_11BIT:
+				current_resolution = ONEWIRE_RESOLUTION_12BIT;
+				break;
+			case ONEWIRE_RESOLUTION_12BIT:
+				current_resolution = ONEWIRE_RESOLUTION_9BIT;
+				break;
 			}
 		}
 
-		if(!requested) {
-			if(resolution_changed) {
-				if(!onewire_set_resolution(rom, current_resolution)) {
+		if (!requested) {
+			if (resolution_changed) {
+				if (!onewire_set_resolution(rom, current_resolution)) {
 					printf("Failed setting resolution\n");
 					HAL_Delay(1000);
 				} else {
@@ -162,12 +168,13 @@ int main(void) {
 			}
 			onewire_request_conversion(rom);
 			requested = 1;
-		} else if(onewire_get_request_status()) {
+		} else if (onewire_get_request_status()) {
 			requested = 0;
 			int16_t temp_raw = onewire_read_temperature(rom);
 			float temp_float = temp_raw / 16.0;
 			onewire_format_temperature(temp_raw, temp_str, sizeof(temp_str));
-			printf("Temperature raw: %i, float: %.4f, float2: %s\n", temp_raw, temp_float, temp_str);
+			printf("Temperature raw: %i, float: %.4f, float2: %s\n", temp_raw,
+					temp_float, temp_str);
 		}
 		/* USER CODE END WHILE */
 
@@ -217,6 +224,42 @@ void SystemClock_Config(void) {
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK) {
 		Error_Handler();
 	}
+}
+
+/**
+ * @brief SPI1 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_SPI1_Init(void) {
+
+	/* USER CODE BEGIN SPI1_Init 0 */
+
+	/* USER CODE END SPI1_Init 0 */
+
+	/* USER CODE BEGIN SPI1_Init 1 */
+
+	/* USER CODE END SPI1_Init 1 */
+	/* SPI1 parameter configuration*/
+	hspi1.Instance = SPI1;
+	hspi1.Init.Mode = SPI_MODE_MASTER;
+	hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+	hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+	hspi1.Init.NSS = SPI_NSS_SOFT;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+	hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	hspi1.Init.CRCPolynomial = 10;
+	if (HAL_SPI_Init(&hspi1) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN SPI1_Init 2 */
+
+	/* USER CODE END SPI1_Init 2 */
+
 }
 
 /**
@@ -332,13 +375,16 @@ static void MX_GPIO_Init(void) {
 	/* GPIO Ports Clock Enable */
 	__HAL_RCC_GPIOC_CLK_ENABLE();
 	__HAL_RCC_GPIOH_CLK_ENABLE();
+	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 	__HAL_RCC_GPIOD_CLK_ENABLE();
 	__HAL_RCC_GPIOG_CLK_ENABLE();
-	__HAL_RCC_GPIOA_CLK_ENABLE();
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOB, LD1_Pin | LD3_Pin | LD2_Pin, GPIO_PIN_RESET);
+
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(USB_PowerSwitchOn_GPIO_Port, USB_PowerSwitchOn_Pin,
@@ -359,6 +405,13 @@ static void MX_GPIO_Init(void) {
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+	/*Configure GPIO pin : SPI1_CS_Pin */
+	GPIO_InitStruct.Pin = SPI1_CS_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	HAL_GPIO_Init(SPI1_CS_GPIO_Port, &GPIO_InitStruct);
 
 	/*Configure GPIO pin : USB_PowerSwitchOn_Pin */
 	GPIO_InitStruct.Pin = USB_PowerSwitchOn_Pin;
