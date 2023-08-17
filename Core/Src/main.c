@@ -25,6 +25,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include "diskio.h"
+#include "ff.h"
 #include "onewire.h"
 #include "stm32f4xx_hal_gpio.h"
 /* USER CODE END Includes */
@@ -122,11 +123,41 @@ int main(void) {
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
-	uint32_t last_test = 0;
+	FATFS FatFs;
+	DIR dp;
+	FILINFO finfo;
+	FRESULT res;
+	uint32_t last_event = 0;
 	while (1) {
-		if(HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin) == GPIO_PIN_SET && last_test + 1000 < HAL_GetTick()) {
-			spi_test_sd();
-			last_test = HAL_GetTick();
+		if(HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin) == GPIO_PIN_SET && last_event + 1000 < HAL_GetTick()) {
+			printf("\n");
+			last_event = HAL_GetTick();
+			
+			if((res = f_mount(&FatFs, "", 1) != FR_OK)) {
+				printf("Mount failed: %x\n", res);
+				continue;
+			}
+			if((res = f_opendir(&dp, "/") != FR_OK)) {
+				printf("Open dir failed: %x\n", res);
+				continue;
+			}
+
+			for(;;){
+				if((res = f_readdir(&dp, &finfo) != FR_OK)) {
+					printf("Read dir failed: %x\n", res);
+					Error_Handler();
+				}
+				if(finfo.fname[0] == 0) {
+					break;
+				}
+				printf("Name: %s\n", finfo.fname);
+				printf("Type: %s\n\n", (finfo.fattrib & AM_DIR) ? "Directory" : "File");
+			}
+
+			if(f_unmount("") != FR_OK) {
+				printf("Unmount failed\n");
+				Error_Handler();
+			}
 		}
 		/* USER CODE END WHILE */
 

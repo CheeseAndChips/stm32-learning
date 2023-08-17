@@ -21,6 +21,10 @@
 #define CS_HIGH()			HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET)
 
 extern SPI_HandleTypeDef hspi1;
+
+static volatile uint8_t sd_initialized = 0;
+static volatile uint8_t sd_ccs;
+
 #define SPI_HANDLE hspi1
 
 #if FF_MIN_SS != FF_MAX_SS
@@ -119,7 +123,8 @@ static uint8_t spi_send_sd_command_r1(uint8_t command, uint32_t arg) {
 static uint8_t spi_sd_read_block(uint32_t block_index, uint8_t *data) {
 	uint8_t ret = 0;
 
-	if(spi_send_sd_command_r1(17, block_index) != 0x00)
+	uint32_t address = (sd_ccs ? block_index : block_index * SECTOR_SIZE);
+	if(spi_send_sd_command_r1(17, address) != 0x00)
 		return SD_READ_BAD_R1;
 
 	ASSERT_CS_LOW();
@@ -171,7 +176,9 @@ static uint8_t spi_init_sd(void) {
 		if(buffer[0] != 0x00) return 1; // init failed
 		
 		spi_send_sd_command(58, 0, buffer, R3_LEN); // read OCR again
-		if(buffer[0] != 0x01) return 1; // according to spec, this should not happen
+		if(buffer[0] != 0x00) return 1; // according to spec, this should not happen
+		
+		sd_ccs = (buffer[1] & 0x40) != 0;
 	} else { // illegal command: older card
 		spi_send_sd_command(58, 0, buffer, R3_LEN); // read OCR
 		if(buffer[0] != 0x01) return 1; // according to spec, this should not happen
@@ -181,19 +188,15 @@ static uint8_t spi_init_sd(void) {
 			buffer[0] = spi_send_sd_command_r1(41, 0); // initialize
 		} while(buffer[0] == 0x01);
 		if(buffer[0] != 0x00) return 1; // init failed
+
+		sd_ccs = 0;
 	}
 
-	spi_send_sd_command_r1(16, SECTOR_SIZE); // set block size
-	if(buffer[0] != 0x00) return 1;
+	if(spi_send_sd_command_r1(16, SECTOR_SIZE) != 0x00) { // set block size
+		return 1;
+	}
 	return 0;
 }
-
-void spi_test_sd(void) {
-	printf("Ret0: %x\n", spi_init_sd());
-	uint8_t buffer[SECTOR_SIZE];
-	printf("Ret1: %x\n", spi_sd_read_block(0, buffer));
-}
-
 
 /*-----------------------------------------------------------------------*/
 /* Get Drive Status                                                      */
@@ -203,7 +206,8 @@ DSTATUS disk_status (
 	BYTE pdrv		/* Physical drive nmuber to identify the drive */
 )
 {
-	return STA_NOINIT;
+	if(sd_initialized) return 0;
+	else return STA_NOINIT;
 }
 
 
@@ -212,11 +216,18 @@ DSTATUS disk_status (
 /* Inidialize a Drive                                                    */
 /*-----------------------------------------------------------------------*/
 
+//TODO: Handle timeouts
 DSTATUS disk_initialize (
 	BYTE pdrv				/* Physical drive nmuber to identify the drive */
 )
 {
-	return STA_NOINIT;
+	if(spi_init_sd() == 0) {
+		sd_initialized = 1;
+		return 0;
+	} else {
+		sd_initialized = 0;
+		return STA_NOINIT;
+	}
 }
 
 
@@ -232,7 +243,11 @@ DRESULT disk_read (
 	UINT count		/* Number of sectors to read */
 )
 {
-	return RES_PARERR;
+	if(sd_initialized == 0) return RES_NOTRDY;
+	for(int i = 0; i < count; i++) {
+		if(spi_sd_read_block(sector, buff + i) != 0) { return RES_ERROR; }
+	}
+	return RES_OK;
 }
 
 

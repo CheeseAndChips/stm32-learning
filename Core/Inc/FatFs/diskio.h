@@ -23,8 +23,6 @@ typedef enum {
 	RES_PARERR		/* 4: Invalid Parameter */
 } DRESULT;
 
-void spi_test_sd(void);
-
 /*---------------------------------------*/
 /* Prototypes for disk control functions */
 
