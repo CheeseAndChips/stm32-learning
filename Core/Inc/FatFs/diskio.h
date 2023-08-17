@@ -5,6 +5,8 @@
 #ifndef _DISKIO_DEFINED
 #define _DISKIO_DEFINED
 
+#include "ff.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,6 +23,7 @@ typedef enum {
 	RES_PARERR		/* 4: Invalid Parameter */
 } DRESULT;
 
+void spi_test_sd(void);
 
 /*---------------------------------------*/
 /* Prototypes for disk control functions */

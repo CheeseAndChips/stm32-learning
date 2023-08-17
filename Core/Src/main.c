@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <string.h>
+#include "diskio.h"
 #include "onewire.h"
 #include "stm32f4xx_hal_gpio.h"
 /* USER CODE END Includes */
@@ -80,113 +81,6 @@ int __io_getchar(void) {
 	HAL_UART_Receive(&huart3, &data, 1, HAL_MAX_DELAY);
 	return data;
 }
-
-static uint8_t spi_send_sd_command(uint8_t command, uint32_t arg, uint8_t crc, uint8_t response_length) {
-	uint8_t data[6];
-	data[0] = (command & 0x7f) | 0x40;
-	data[1] = (arg & 0xff000000) >> 24;
-	data[2] = (arg & 0x00ff0000) >> 16;
-	data[3] = (arg & 0x0000ff00) >> 8;
-	data[4] = arg & 0x000000ff;
-	data[5] = crc | 0x01;
-	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-	HAL_SPI_Transmit(&hspi1, data, sizeof(data), 0xffff);
-	data[0] = 0xff;
-	do {
-		HAL_SPI_Receive(&hspi1, data, 1, 0xffff);
-	} while(data[0] == 0xff);
-	//HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
-	
-	if(response_length > 0) {
-		uint8_t response[32];
-		memset(response, 0xff, sizeof(response));
-		//HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-		HAL_SPI_Receive(&hspi1, response, response_length, 0xffff);
-		//HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
-	}
-	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
-	return data[0];
-}
-
-static uint32_t spi_send_sd_command_read_block(uint32_t block, uint8_t *data) {
-	uint8_t random_data = 0xff;
-	HAL_SPI_Transmit(&hspi1, &random_data, 1, 0xffff);
-	spi_send_sd_command(17, block, 0x95, 1);
-
-	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-	for(;;) {
-		uint8_t x = 0xff;
-		uint8_t received = HAL_SPI_Receive(&hspi1, &x, 1, 0xffff);
-		if(x != 0xff) {
-			if(x != 0xfe) {
-				printf("Bad block start!\n");
-				Error_Handler();
-			}
-			break;
-		}
-
-		HAL_Delay(1);
-	}
-	printf("Reading data!\n");
-	memset(data, 0xff, 512);
-	uint16_t crc = 0xffff;
-	HAL_SPI_Receive(&hspi1, data, 512, 0xffff);
-	HAL_SPI_Receive(&hspi1, (uint8_t*)&crc, 2, 0xffff);
-	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
-	return crc;
-}
-
-static void spi_testing(void) {
-	// need 74 cycles (10 bytes)
-	uint8_t empty_data[10];
-	memset(empty_data, 0xff, sizeof(empty_data));
-	if(HAL_SPI_Transmit(&hspi1, empty_data, sizeof(empty_data), 0xffff) != HAL_OK) {
-		printf("SPI transmit failed\n");
-		Error_Handler();
-	}
-
-	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-	
-	spi_send_sd_command(0, 0, 0x95, 1);
-	spi_send_sd_command(8, 0x1AA, 0x87, 7);
-	spi_send_sd_command(58, 0x00, 0x10, 5);
-	HAL_Delay(1);
-	for(;;) {
-		spi_send_sd_command(55, 0, 0x65, 1);
-		uint8_t resp = spi_send_sd_command(41, 0x40000000, 0x77, 1);
-		if(!resp)
-			break;
-		HAL_Delay(1);
-	}
-
-	spi_send_sd_command(58, 0x00, 0x10, 5);
-	spi_send_sd_command(16, 512, 0x15, 1);
-	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
-	HAL_Delay(2);
-
-	uint8_t data[512];
-	while(1) {
-		uint32_t block_index;
-		printf("Enter block index: ");
-		fflush(stdout);
-		if(!scanf("%" SCNu32, &block_index)) {
-			printf("Bad block index!\n");
-			continue;
-		}
-		uint32_t final_index = block_index + 4;
-		for(; block_index < final_index; block_index++) {
-			printf("Block index: %" PRIu32 "\n", block_index);
-			spi_send_sd_command_read_block(block_index, data);
-			for(uint32_t i = 0; i < 512 / 16; i++) {
-				printf("%08" PRIx32 ": ", i * 16 + block_index * 512);
-				for(uint32_t j = 0; j < 16; j += 2) {
-					printf("%02x%02x ", data[i * 16 + j], data[i * 16 + j + 1]);
-				}
-				printf("\n");
-			}
-		}
-	}
-}
 /* USER CODE END 0 */
 
 /**
@@ -231,10 +125,7 @@ int main(void) {
 	uint32_t last_test = 0;
 	while (1) {
 		if(HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin) == GPIO_PIN_SET && last_test + 1000 < HAL_GetTick()) {
-			printf("Trying...\n");
-
-			printf("Starting testing\n");
-			spi_testing();
+			spi_test_sd();
 			last_test = HAL_GetTick();
 		}
 		/* USER CODE END WHILE */
@@ -537,3 +428,5 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+
+
