@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include "onewire.h"
+#include "lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -109,66 +110,13 @@ int main(void) {
 	MX_TIM6_Init();
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
-	onewire_init(&htim6);
-
-	uint64_t rom = onewire_get_single_address();
-	printf("Found ROM: ");
-	for(int i = 0; i < 8; i++) {
-		printf("%02x", (uint8_t)(rom >> ((7 - i) * 8)));
-	}
-	printf("\n");
-
-	if(!rom)
-		Error_Handler();
+	lcd_init();
+	lcd_text_printf("Hello world!\n");
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
-	char temp_str[32];
-	onewire_resolution current_resolution = ONEWIRE_RESOLUTION_9BIT;
-	uint8_t requested = 0;
-	uint8_t resolution_changed = 1;
-	uint32_t next_change = 0;
-	
 	while (1) {
-		if(HAL_GetTick() >= next_change && HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin) == GPIO_PIN_SET) {
-			next_change = HAL_GetTick() + 1000;
-			resolution_changed = 1;
-			switch(current_resolution) {
-				case ONEWIRE_RESOLUTION_9BIT:
-					current_resolution = ONEWIRE_RESOLUTION_10BIT;
-					break;
-				case ONEWIRE_RESOLUTION_10BIT:
-					current_resolution = ONEWIRE_RESOLUTION_11BIT;
-					break;
-				case ONEWIRE_RESOLUTION_11BIT:
-					current_resolution = ONEWIRE_RESOLUTION_12BIT;
-					break;
-				case ONEWIRE_RESOLUTION_12BIT:
-					current_resolution = ONEWIRE_RESOLUTION_9BIT;
-					break;
-			}
-		}
-
-		if(!requested) {
-			if(resolution_changed) {
-				if(!onewire_set_resolution(rom, current_resolution)) {
-					printf("Failed setting resolution\n");
-					HAL_Delay(1000);
-				} else {
-					resolution_changed = 0;
-					printf("Updated resolution\n");
-				}
-			}
-			onewire_request_conversion(rom);
-			requested = 1;
-		} else if(onewire_get_request_status()) {
-			requested = 0;
-			int16_t temp_raw = onewire_read_temperature(rom);
-			float temp_float = temp_raw / 16.0;
-			onewire_format_temperature(temp_raw, temp_str, sizeof(temp_str));
-			printf("Temperature raw: %i, float: %.4f, float2: %s\n", temp_raw, temp_float, temp_str);
-		}
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
@@ -331,14 +279,34 @@ static void MX_GPIO_Init(void) {
 
 	/* GPIO Ports Clock Enable */
 	__HAL_RCC_GPIOC_CLK_ENABLE();
+	__HAL_RCC_GPIOF_CLK_ENABLE();
 	__HAL_RCC_GPIOH_CLK_ENABLE();
+	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_GPIOB_CLK_ENABLE();
+	__HAL_RCC_GPIOE_CLK_ENABLE();
 	__HAL_RCC_GPIOD_CLK_ENABLE();
 	__HAL_RCC_GPIOG_CLK_ENABLE();
-	__HAL_RCC_GPIOA_CLK_ENABLE();
+
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOF,
+			LCD_CS_Pin | LCD_RST_Pin | LCD_D0_Pin | LCD_D7_Pin | LCD_D4_Pin
+					| LCD_D2_Pin, GPIO_PIN_RESET);
+
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOC, LCD_WR_Pin | LCD_RS_Pin, GPIO_PIN_RESET);
+
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(LCD_RD_GPIO_Port, LCD_RD_Pin, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOB, LD1_Pin | LD3_Pin | LD2_Pin, GPIO_PIN_RESET);
+
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOE, LCD_D6_Pin | LCD_D5_Pin | LCD_D3_Pin,
+			GPIO_PIN_RESET);
+
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(LCD_D1_GPIO_Port, LCD_D1_Pin, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(USB_PowerSwitchOn_GPIO_Port, USB_PowerSwitchOn_Pin,
@@ -353,12 +321,49 @@ static void MX_GPIO_Init(void) {
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	HAL_GPIO_Init(USER_Btn_GPIO_Port, &GPIO_InitStruct);
 
+	/*Configure GPIO pins : LCD_CS_Pin LCD_RST_Pin LCD_D0_Pin LCD_D7_Pin
+	 LCD_D4_Pin LCD_D2_Pin */
+	GPIO_InitStruct.Pin = LCD_CS_Pin | LCD_RST_Pin | LCD_D0_Pin | LCD_D7_Pin
+			| LCD_D4_Pin | LCD_D2_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+	HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+	/*Configure GPIO pins : LCD_WR_Pin LCD_RS_Pin */
+	GPIO_InitStruct.Pin = LCD_WR_Pin | LCD_RS_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+	/*Configure GPIO pin : LCD_RD_Pin */
+	GPIO_InitStruct.Pin = LCD_RD_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+	HAL_GPIO_Init(LCD_RD_GPIO_Port, &GPIO_InitStruct);
+
 	/*Configure GPIO pins : LD1_Pin LD3_Pin LD2_Pin */
 	GPIO_InitStruct.Pin = LD1_Pin | LD3_Pin | LD2_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+	/*Configure GPIO pins : LCD_D6_Pin LCD_D5_Pin LCD_D3_Pin */
+	GPIO_InitStruct.Pin = LCD_D6_Pin | LCD_D5_Pin | LCD_D3_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+	HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+	/*Configure GPIO pin : LCD_D1_Pin */
+	GPIO_InitStruct.Pin = LCD_D1_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+	HAL_GPIO_Init(LCD_D1_GPIO_Port, &GPIO_InitStruct);
 
 	/*Configure GPIO pin : USB_PowerSwitchOn_Pin */
 	GPIO_InitStruct.Pin = USB_PowerSwitchOn_Pin;
