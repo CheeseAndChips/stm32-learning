@@ -6,8 +6,8 @@
 
 /* FONT BEGIN */
 
-#define FONT_H 8
-#define FONT_W 5
+#define FONT_H 24
+#define FONT_W 12
 
 #define DISPLAY_H 240
 #define DISPLAY_W 320

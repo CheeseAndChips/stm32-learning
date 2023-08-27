@@ -1,9 +1,11 @@
+# font: https://github.com/fcambus/spleen
+
 from PIL import Image
 import os.path
 
 def main():
-	font_height = 8
-	font_width = 5
+	font_height = 24
+	font_width = 12
 
 	font = Image.open(os.path.join('..', 'font.png'))
 	width, height = font.size
