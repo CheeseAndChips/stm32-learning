@@ -6,7 +6,7 @@ COMPILEDB=compiledb
 SED=sed
 ELFTARGET=$(BUILD_DIR)/$(TARGET).elf
 BINTARGET=$(BUILD_DIR)/$(TARGET).bin
-JOBCNT=-j8
+JOBCNT=-j4
 
 all:
 	$(MAKE) -C $(BUILD_DIR) $(JOBCNT) all
@@ -26,3 +26,7 @@ compiledb: clean
 clean:
 	$(MAKE) -C $(BUILD_DIR) clean
 	$(RM) $(BINTARGET)
+	$(RM) $(BUILD_DIR)/font.hex
+	$(RM) $(BUILD_DIR)/font_special.hex
+	$(RM) $(BUILD_DIR)/font_data.o
+	$(RM) $(BUILD_DIR)/font_special_data.o

@@ -33,6 +33,21 @@ const char *get_char_data(uint8_t c) {
 	return ret;
 }
 
+extern char _binary_font_special_hex_start;
+extern char _binary_font_special_hex_end;
+extern char _binary_font_special_hex_size;
+
+size_t get_special_font_size() {
+	return (size_t)(&_binary_font_hex_size);
+}
+
+const char *get_special_char_data(uint8_t c) {
+	const char *start = &_binary_font_special_hex_start;
+	const char *ret = start + c * CHAR_SIZE;
+	assert(ret <= &_binary_font_special_hex_end);
+	return ret;
+}
+
 /* FONT END */
 
 void lcd_text_update_cursor(void);
@@ -159,8 +174,7 @@ void lcd_clear(void) {
 	lcd_text_update_cursor();
 }
 
-void lcd_text_write_symbol_raw(uint8_t c) {
-	const char *ch = get_char_data(c);
+void lcd_text_write_symbol_raw(const char *ch) {
 	int8_t shift = 7;
 	for(int i = 0; i < FONT_W * FONT_H; i++) {
 		if(*ch & (1 << shift)) {
@@ -210,7 +224,11 @@ void lcd_text_putc(char c) {
 		lcd_text_newline();
 	} else {
 		if(cursor_pos.col < LINE_LENGTH) {
-			lcd_text_write_symbol_raw(c - ' ');
+			if(c & 0x80) { // special symbol
+				lcd_text_write_symbol_raw(get_special_char_data(c ^ 0x80));
+			} else {
+				lcd_text_write_symbol_raw(get_char_data(c - ' '));
+			}
 			cursor_pos.col++;
 		}
 	}

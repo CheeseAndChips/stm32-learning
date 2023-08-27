@@ -162,7 +162,7 @@ int main(void) {
 				for(int i = 0; i < device_cnt; i++) {
 					uint16_t temp_raw = onewire_read_temperature(roms[i]);
 					onewire_format_temperature(temp_raw, buffer, sizeof(buffer));
-					lcd_text_printf("Temp %i: %s C    \n", i+1, buffer);
+					lcd_text_printf("Temp %i: %s " SPECIAL_DEGREE "C    \n", i+1, buffer);
 				}
 				main_loop_state = START_READINGS;
 				break;

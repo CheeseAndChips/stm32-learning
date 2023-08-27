@@ -3,11 +3,8 @@
 from PIL import Image
 import os.path
 
-def main():
-	font_height = 24
-	font_width = 12
-
-	font = Image.open(os.path.join('..', 'font.png'))
+def convert_image(font_height, font_width, image_path, output_path):
+	font = Image.open(image_path)
 	width, height = font.size
 
 	assert height == font_height and width % font_width == 0
@@ -35,8 +32,14 @@ def main():
 
 		final_data += data
 
-	with open(os.path.join('.', 'font.hex'), 'wb') as f:
+	with open(output_path, 'wb') as f:
 		f.write(bytes(final_data))
+
+def main():
+    font_height = 24
+    font_width = 12
+    convert_image(font_height, font_width, os.path.join('..', 'font.png'), os.path.join('.', 'font.hex'))
+    convert_image(font_height, font_width, os.path.join('..', 'font_special.png'), os.path.join('.', 'font_special.hex'))
 
 if __name__ == '__main__':
 	main()

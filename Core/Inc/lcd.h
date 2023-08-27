@@ -2,6 +2,8 @@
 #define INC_LCD_H_
 #include <stdint.h>
 
+#define SPECIAL_DEGREE "\x80"
+
 typedef struct {
 	uint8_t row, col;
 } cursor_pos_t;
