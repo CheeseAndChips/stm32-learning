@@ -112,6 +112,18 @@ int main(void) {
 	printf("---- PROGRAM START ----\n\n");
 	lcd_init();
 	lcd_text_printf("Hello world!\n");
+	onewire_init(&htim6);
+	
+	onewire_start_search();
+	do {
+		uint64_t rom = onewire_search();
+		uint8_t *data = (uint8_t*)&rom;
+		for(uint8_t i = 0; i < 8; i++) {
+			printf("%02x", data[i]);
+		}
+		printf("\n");
+	} while(onewire_get_search_state() == RUNNING);
+
 	/* USER CODE END 2 */
 
 	/* Infinite loop */

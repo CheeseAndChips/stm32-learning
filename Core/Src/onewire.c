@@ -190,22 +190,92 @@ void onewire_init(TIM_HandleTypeDef *htim_) {
 	htim = htim_;
 }
 
-//TODO: check CRC
-//returns 0 if device cnt on bus != 1
-uint64_t onewire_get_single_address(void) {
+// https://www.analog.com/en/app-notes/1wire-search-algorithm.html
+static int32_t last_discrepancy;
+static onewire_search_state search_state;
+static uint64_t rom;
+void onewire_start_search(void) {
+	last_discrepancy = -1;
+	search_state = RUNNING;
+	rom = 0;
+}
+
+uint64_t onewire_search(void) {
+	int32_t last_zero = -1;
+	uint64_t mask = 1;
+
+	switch(search_state) {
+		case DONE:
+		case BAD_CRC:
+		case NO_DEVICE:
+			return 0;
+		case NOT_INITIALIZED:
+			onewire_start_search();
+			break;
+		case RUNNING:
+			break;
+	}
+
 	onewire_reset();
 	onewire_write_byte(ONEWIRE_SEARCH);
-	uint64_t rom = 0;
-	for(uint8_t i = 0; i < 64; i++) {
+	for(int32_t i = 0; i < 64; i++) {
 		uint8_t b1 = onewire_read_bit();
 		uint8_t b2 = onewire_read_bit();
-		if(b1 == b2) {
+		uint8_t next_bit;
+
+		if(b1 == 1 && b2 == 1) {
+			search_state = NO_DEVICE;
 			return 0;
+		} else if(b1 != b2) {
+			next_bit = b1;
+		} else { // b1 = b2 = 0 (discrepancy)
+			if(i < last_discrepancy) {
+				next_bit = (rom & mask) != 0;
+			} else if(i > last_discrepancy) {
+				next_bit = 0;
+			} else {
+				next_bit = 1;
+			}
+
+			if(next_bit == 0) {
+				last_zero = i;
+			}
 		}
-		rom = (rom >> 1) | ((uint64_t)b1 << 63);
-		onewire_write_bit(b1);
+
+		if(next_bit) {
+			rom |= mask;
+		} else {
+			rom &= ~mask;
+		}
+		rom |= mask * next_bit;
+		mask <<= 1;
+		onewire_write_bit(next_bit);
 	}
+
+	last_discrepancy = last_zero;
+	if(last_discrepancy == -1) {
+		search_state = DONE;
+	}
+
+	uint8_t rom_bin[8];
+	uint8_t *ptr1 = rom_bin;
+	uint8_t *ptr2 = (uint8_t*)(&rom) + 7;
+	for(int i = 8; i > 0; i--) {
+		*ptr1 = *ptr2;
+		ptr1++;
+		ptr2--;
+	}
+
+	if(onewire_calculate_crc(rom_bin, 8) != 0) {
+		search_state = BAD_CRC;
+		return 0;
+	}
+
 	return rom;
+}
+
+onewire_search_state onewire_get_search_state(void) {
+	return search_state;
 }
 
 void onewire_request_conversion(uint64_t rom) {
