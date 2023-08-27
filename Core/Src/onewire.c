@@ -46,6 +46,7 @@ static uint8_t onewire_read_bit(void);
 static uint8_t onewire_reset(void);
 static void onewire_write_byte(uint8_t byte);
 static void onewire_match_rom(uint64_t rom);
+static void onewire_match_rom_noreset(uint64_t rom);
 static uint8_t onewire_calculate_crc(void *src, uint8_t byte_cnt);
 static uint8_t onewire_read_scratchpad(uint64_t rom, uint8_t dest[8]);
 
@@ -133,6 +134,10 @@ static void onewire_write_byte(uint8_t byte) {
 
 static void onewire_match_rom(uint64_t rom) {
 	onewire_reset();
+	onewire_match_rom_noreset(rom);
+}
+
+static void onewire_match_rom_noreset(uint64_t rom) {
 	onewire_write_byte(ONEWIRE_MATCH_ROM);
 
 	for(int i = 0; i < 8; i++) {
@@ -281,6 +286,14 @@ onewire_search_state onewire_get_search_state(void) {
 void onewire_request_conversion(uint64_t rom) {
 	onewire_match_rom(rom);
 	onewire_write_byte(ONEWIRE_CMD_CONVERT_T);
+}
+
+void onewire_request_conversion_multiple(uint64_t *roms, int cnt) {
+	onewire_reset();
+	for(int i = 0; i < cnt; i++) {
+		onewire_match_rom(roms[i]);
+		onewire_write_byte(ONEWIRE_CMD_CONVERT_T);
+	}
 }
 
 uint8_t onewire_get_request_status() {

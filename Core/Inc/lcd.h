@@ -10,7 +10,7 @@ void lcd_init(void);
 void lcd_text_init(void);
 // void lcd_text_newline(void);
 // void lcd_text_backspace(void);
-void lcd_text_update_cursor(void);
+void lcd_text_set_cursor(uint8_t x, uint8_t y);
 void lcd_clear(void);
 void lcd_text_putc(char c);
 void lcd_text_puts(const char *str);

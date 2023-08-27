@@ -27,6 +27,7 @@ typedef enum {
 void onewire_init(TIM_HandleTypeDef *htim_);
 int32_t onewire_get_devices(int32_t max_device_cnt, uint64_t *roms);
 void onewire_request_conversion(uint64_t rom);
+void onewire_request_conversion_multiple(uint64_t *roms, int cnt);
 void onewire_start_search(void);
 uint64_t onewire_search(void);
 onewire_search_state onewire_get_search_state(void);

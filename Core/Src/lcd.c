@@ -182,6 +182,12 @@ void lcd_text_update_cursor(void) {
 	lcd_command_write(0x2c);
 }
 
+void lcd_text_set_cursor(uint8_t x, uint8_t y) {
+	cursor_pos.row = x;
+	cursor_pos.col = y;
+	lcd_text_update_cursor();
+}
+
 void lcd_text_newline(void) {
 	cursor_pos.row++;
 	cursor_pos.col = 0;

@@ -34,7 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define MAX_ONEWIRE_DEVICES 16
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -50,7 +50,11 @@ UART_HandleTypeDef huart3;
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
 /* USER CODE BEGIN PV */
-
+static enum {
+	START_READINGS,
+	WAIT_FOR_READINGS,
+	DISPLAY_READINGS,
+} main_loop_state = START_READINGS;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -114,21 +118,55 @@ int main(void) {
 	lcd_text_printf("Hello world!\n");
 	onewire_init(&htim6);
 	
+	uint64_t roms[MAX_ONEWIRE_DEVICES];
 	onewire_start_search();
+	int device_cnt = 0;
 	do {
-		uint64_t rom = onewire_search();
-		uint8_t *data = (uint8_t*)&rom;
-		for(uint8_t i = 0; i < 8; i++) {
-			printf("%02x", data[i]);
-		}
-		printf("\n");
-	} while(onewire_get_search_state() == RUNNING);
+		roms[device_cnt++] = onewire_search();
+	} while(onewire_get_search_state() == RUNNING && device_cnt < MAX_ONEWIRE_DEVICES);
 
+	switch(onewire_get_search_state()) {
+		case NOT_INITIALIZED:
+			printf("Should be impossible to reach?\n");
+			Error_Handler();
+		case BAD_CRC:
+			printf("Bad CRC\n");
+			Error_Handler();
+		case NO_DEVICE:
+			printf("No device connected\n");
+			Error_Handler();
+		case RUNNING:
+			printf("Warning: too many devices\n");
+		case DONE:
+			break;
+	}
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	while (1) {
+		switch(main_loop_state) {
+			case START_READINGS:
+				onewire_request_conversion_multiple(roms, device_cnt);
+				main_loop_state = WAIT_FOR_READINGS;
+				break;
+			case WAIT_FOR_READINGS:
+				if(onewire_get_request_status())
+					break;
+				
+				main_loop_state = DISPLAY_READINGS;
+				break;
+			case DISPLAY_READINGS: ;
+				char buffer[32];
+				lcd_text_set_cursor(0, 0);
+				for(int i = 0; i < device_cnt; i++) {
+					uint16_t temp_raw = onewire_read_temperature(roms[i]);
+					onewire_format_temperature(temp_raw, buffer, sizeof(buffer));
+					lcd_text_printf("Temp %i: %s C    \n", i+1, buffer);
+				}
+				main_loop_state = START_READINGS;
+				break;
+		}
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
