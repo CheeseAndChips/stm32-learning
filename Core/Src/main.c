@@ -139,6 +139,10 @@ int main(void) {
 		case DONE:
 			break;
 	}
+
+	for(int i = 0; i < device_cnt; i++) {
+		onewire_set_resolution(roms[i], ONEWIRE_RESOLUTION_9BIT);
+	}
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -161,7 +165,8 @@ int main(void) {
 				for(int i = 0; i < device_cnt; i++) {
 					uint16_t temp_raw = onewire_read_temperature(roms[i]);
 					onewire_format_temperature(temp_raw, buffer, sizeof(buffer));
-					lcd_text_printf("Temp %i: %s " SPECIAL_DEGREE "C    \n", i+1, buffer);
+					lcd_text_printf(COLOR_WHITE, "Temp %i: %s " SPECIAL_DEGREE "C", i+1, buffer);
+					lcd_text_newline_with_clearing();
 				}
 				main_loop_state = START_READINGS;
 				break;
