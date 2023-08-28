@@ -82,15 +82,6 @@ void lcd_write(uint8_t data) {
 	GPIOD->BSRR |= \
 		GET_BSRR_MASK(1, data);
 
-//	SET_PIN(LCD_D0, (data >> 0) & 1);
-//	SET_PIN(LCD_D1, (data >> 1) & 1);
-//	SET_PIN(LCD_D2, (data >> 2) & 1);
-//	SET_PIN(LCD_D3, (data >> 3) & 1);
-//	SET_PIN(LCD_D4, (data >> 4) & 1);
-//	SET_PIN(LCD_D5, (data >> 5) & 1);
-//	SET_PIN(LCD_D6, (data >> 6) & 1);
-//	SET_PIN(LCD_D7, (data >> 7) & 1);
-
 	SET_H(LCD_WR);
 }
 
@@ -119,12 +110,12 @@ void lcd_set_address(int16_t y1, int16_t y2, int16_t x1, int16_t x2) {
 }
 
 void lcd_set_pixel(int16_t x, int16_t y, int16_t color) {
-	SET_L(LCD_CS);
-	lcd_set_address(y, y+1, x, x+1);
-	lcd_command_write(0x2c);
-	lcd_data_write(color >> 8);
-	lcd_data_write(color);
-	SET_H(LCD_CS);
+	if(x >= 0 && y >= 0 && x < DISPLAY_W && y < DISPLAY_H) {
+		lcd_set_address(y, y+1, x, x+1);
+		lcd_command_write(0x2c);
+		lcd_data_write(color >> 8);
+		lcd_data_write(color);
+	}
 }
 
 void lcd_init(void) {
@@ -247,4 +238,58 @@ void lcd_text_printf(const char *format, ...) {
 	vsnprintf(buf, LINE_LENGTH + 1, format, args);
 	lcd_text_puts(buf);
 	va_end(args);
+}
+
+// https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+static uint8_t do_swap = 0;
+static void lcd_draw_line_low(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t color) {
+	int16_t dx, dy, yi, D, y;
+
+	dx = x1 - x0;
+    dy = y1 - y0;
+    yi = 1;
+    if(dy < 0) {
+        yi = -1;
+        dy = -dy;
+	}
+    D = (2 * dy) - dx;
+    y = y0;
+
+    for(int16_t x = x0; x <= x1; x++) {
+		if(do_swap) lcd_set_pixel(y, x, color);
+		else lcd_set_pixel(x, y, color);
+        if(D > 0) {
+            y = y + yi;
+            D = D + (2 * (dy - dx));
+		} else {
+            D = D + 2*dy;
+		}
+	}
+}
+
+static void lcd_draw_line_high(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t color) {
+	do_swap = 1;
+	lcd_draw_line_low(y0, x0, y1, x1, color);
+}
+
+static int16_t abs16(int16_t x) {
+	if(x < 0) return -x;
+	else return x;
+}
+
+void lcd_draw_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t color) {
+	do_swap = 0;
+	if(abs16(y1 - y0) < abs16(x1 - x0)){
+        if(x0 > x1) {
+            lcd_draw_line_low(x1, y1, x0, y0, color);
+		} else {
+            lcd_draw_line_low(x0, y0, x1, y1, color);
+		}
+	} else {
+        if(y0 > y1) {
+			lcd_draw_line_high(x1, y1, x0, y0, color);
+		} else {
+			lcd_draw_line_high(x0, y0, x1, y1, color);
+		}
+	}
 }

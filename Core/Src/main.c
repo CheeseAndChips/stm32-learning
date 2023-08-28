@@ -115,7 +115,17 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
 	lcd_init();
-	lcd_text_printf("Hello world!\n");
+
+	for(;;) {
+		int16_t a, b, c, d;
+		printf("Enter numbers: ");
+		fflush(stdout);
+		scanf("%" SCNi16 " %" SCNi16 " %" SCNi16 " %" SCNi16, &a, &b, &c, &d);
+		lcd_clear();
+		lcd_draw_line(a, b, c, d, 0xffff);
+		HAL_Delay(1000);
+	}
+
 	onewire_init(&htim6);
 	
 	uint64_t roms[MAX_ONEWIRE_DEVICES];
