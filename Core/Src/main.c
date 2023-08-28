@@ -80,6 +80,61 @@ int __io_getchar(void) {
 	HAL_UART_Receive(&huart3, &data, 1, HAL_MAX_DELAY);
 	return data;
 }
+
+typedef struct {
+	uint16_t temp;
+	int32_t time;
+} datapoint;
+
+static int32_t map_value(int32_t in1, int32_t in2, int32_t out1, int32_t out2, int32_t x) {
+	int64_t a = x - in1;
+	int64_t b = in2 - in1;
+	int64_t c = out2 - out1;
+	int64_t d = (a*c)/b;
+	return out1 + d;
+}
+
+static uint8_t draw_chart(datapoint *data, int datapoints_count) {
+	const int OFFSET = 20;
+	const int oldest_timestamp = -2 * 60 * 1000; // 2 minutes
+
+	int first_datapoint = -1;
+	int last_datapoint = datapoints_count;
+	for(int i = 0; i < datapoints_count; i++) {
+		if(data[i].time >= oldest_timestamp) {
+			first_datapoint = i;
+			break;
+		}
+	}
+	
+	if(first_datapoint == -1 || last_datapoint - first_datapoint < 3) { 
+		return 0;
+	}
+
+	uint16_t min_temp = data[first_datapoint].temp;
+	uint16_t max_temp = data[first_datapoint].temp;
+	for(int i = first_datapoint + 1; i < last_datapoint; i++) {
+		if(data[i].temp < min_temp) min_temp = data[i].temp;
+		if(data[i].temp > max_temp) max_temp = data[i].temp;
+	}
+
+	int32_t prev_temp = map_value(min_temp, max_temp, DISPLAY_H - OFFSET, OFFSET, data[0].temp);
+	int32_t prev_time = map_value(oldest_timestamp, 0, OFFSET, DISPLAY_W - OFFSET, data[0].time);
+	for(int i = first_datapoint + 1; i < last_datapoint; i++) {
+		int32_t curr_temp = map_value(min_temp, max_temp, DISPLAY_H - OFFSET, OFFSET, data[i].temp);
+		int32_t curr_time = map_value(oldest_timestamp, 0, OFFSET, DISPLAY_W - OFFSET, data[i].time);
+
+		lcd_draw_line(prev_time, prev_temp, curr_time, curr_temp, COLOR_WHITE);
+
+		prev_temp = curr_temp;
+		prev_time = curr_time;
+	}
+
+	lcd_draw_line(OFFSET, DISPLAY_H - OFFSET, DISPLAY_W - OFFSET, DISPLAY_H - OFFSET, COLOR_WHITE);
+	lcd_draw_line(OFFSET, OFFSET, OFFSET, DISPLAY_H - OFFSET, COLOR_WHITE);
+
+	return 1;
+}
 /* USER CODE END 0 */
 
 /**
@@ -116,6 +171,15 @@ int main(void) {
 	printf("---- PROGRAM START ----\n\n");
 	lcd_init();
 	onewire_init(&htim6);
+
+	datapoint data[] = {
+		{.time=-110000, .temp=10000},
+		{.time=-80000, .temp=40000},
+		{.time=-40000, .temp=30000},
+		{.time=0, .temp=0},
+	};
+	draw_chart(data, sizeof(data) / sizeof(data[0]));
+	for(;;) {}
 
 	uint64_t roms[MAX_ONEWIRE_DEVICES];
 	onewire_start_search();
@@ -460,6 +524,8 @@ static void MX_GPIO_Init(void) {
 void Error_Handler(void) {
 	/* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
+	printf("\n\n---- ERROR HANDLER REACHED ----\n\n");
+	fflush(stdout);
 	__disable_irq();
 	while (1) {
 	}
