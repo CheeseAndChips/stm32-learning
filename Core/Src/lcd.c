@@ -203,17 +203,23 @@ void lcd_init(void) {
 }
 
 void lcd_clear(void) {
-	lcd_set_address(0, DISPLAY_H, 0, DISPLAY_W);
+	lcd_clear_rect(0, 0, DISPLAY_W, DISPLAY_H);
+	cursor_pos.row = 0;
+	cursor_pos.col = 0;
+}
+
+void lcd_clear_rect(int16_t x0, int16_t y0, int16_t x1, int16_t y1) {
+	int16_t dx = (x1 - x0);
+	int16_t dy = (y1 - y0);
+	lcd_set_address(y0, y1, x0, x1);
 	lcd_command_write(0x2c);
 	SET_H(LCD_RS);
 	lcd_write(0x00);
-	for(int i = 0; i < 2*DISPLAY_H*DISPLAY_W - 1; i++) {
+
+	for(int i = 0; i < 2*dx*dy - 1; i++) {
 		SET_L(LCD_WR);
 		SET_H(LCD_WR);
 	}
-
-	cursor_pos.row = 0;
-	cursor_pos.col = 0;
 }
 
 void lcd_set_pixel(int16_t x, int16_t y, uint16_t color) {

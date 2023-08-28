@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <inttypes.h>
+#include <string.h>
 #include "onewire.h"
 #include "lcd.h"
 /* USER CODE END Includes */
@@ -94,28 +95,27 @@ static int32_t map_value(int32_t in1, int32_t in2, int32_t out1, int32_t out2, i
 	return out1 + d;
 }
 
-static uint8_t draw_chart(datapoint *data, int datapoints_count) {
-	const int OFFSET = 20;
-	const int oldest_timestamp = -2 * 60 * 1000; // 2 minutes
-
-	int first_datapoint = -1;
-	int last_datapoint = datapoints_count;
+static int get_first_index(datapoint *data, int datapoints_count, int32_t lowest_allowed) {
 	for(int i = 0; i < datapoints_count; i++) {
-		if(data[i].time >= oldest_timestamp) {
-			first_datapoint = i;
-			break;
+		if(data[i].time >= lowest_allowed) {
+			return i;
 		}
 	}
-	
+	return -1;
+}
+
+static const uint16_t all_colors[] = {
+	COLOR_RED,
+	COLOR_GREEN,
+};
+
+#define MAX_CHART_DATAPOINTS 128
+#define OFFSET 20
+const int oldest_timestamp = -2 * 60 * 1000; // 2 minutes
+static uint8_t draw_chart_line(datapoint *data, int first_datapoint, int last_datapoint, uint16_t min_temp, uint16_t max_temp, uint16_t color) {
+
 	if(first_datapoint == -1 || last_datapoint - first_datapoint < 3) { 
 		return 0;
-	}
-
-	uint16_t min_temp = data[first_datapoint].temp;
-	uint16_t max_temp = data[first_datapoint].temp;
-	for(int i = first_datapoint + 1; i < last_datapoint; i++) {
-		if(data[i].temp < min_temp) min_temp = data[i].temp;
-		if(data[i].temp > max_temp) max_temp = data[i].temp;
 	}
 
 	int32_t prev_temp = map_value(min_temp, max_temp, DISPLAY_H - OFFSET, OFFSET, data[0].temp);
@@ -124,16 +124,58 @@ static uint8_t draw_chart(datapoint *data, int datapoints_count) {
 		int32_t curr_temp = map_value(min_temp, max_temp, DISPLAY_H - OFFSET, OFFSET, data[i].temp);
 		int32_t curr_time = map_value(oldest_timestamp, 0, OFFSET, DISPLAY_W - OFFSET, data[i].time);
 
-		lcd_draw_line(prev_time, prev_temp, curr_time, curr_temp, COLOR_WHITE);
+		lcd_draw_line(prev_time, prev_temp, curr_time, curr_temp, color);
 
 		prev_temp = curr_temp;
 		prev_time = curr_time;
 	}
 
-	lcd_draw_line(OFFSET, DISPLAY_H - OFFSET, DISPLAY_W - OFFSET, DISPLAY_H - OFFSET, COLOR_WHITE);
-	lcd_draw_line(OFFSET, OFFSET, OFFSET, DISPLAY_H - OFFSET, COLOR_WHITE);
-
 	return 1;
+}
+
+static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints_len[MAX_ONEWIRE_DEVICES], int device_cnt) {
+	uint16_t min_temp = 0xffff;
+	uint16_t max_temp = 0;
+	int first_datapoints[MAX_CHART_DATAPOINTS];
+	for(int i = 0; i < device_cnt; i++) {
+		int last_datapoint = datapoints_len[i];
+		int first_datapoint = get_first_index(data[i], last_datapoint, oldest_timestamp);
+
+		if(last_datapoint - first_datapoint < 3) {
+			first_datapoints[i] = -1;
+			continue;
+		}
+
+		first_datapoints[i] = first_datapoint;
+		for(int j = first_datapoint + 1; j < last_datapoint; j++) {
+			if(data[i][j].temp < min_temp) min_temp = data[i][j].temp;
+			if(data[i][j].temp > max_temp) max_temp = data[i][j].temp;
+		}
+	}
+
+	int16_t temp_amplitude = max_temp - min_temp;
+
+	if(!temp_amplitude) {
+		return 1;
+	}
+
+	min_temp -= temp_amplitude / 4;
+	max_temp += temp_amplitude / 4;
+	for(int i = 0; i < device_cnt; i++) {
+		int last_datapoint = datapoints_len[i];
+		int first_datapoint = first_datapoints[i];
+		if(first_datapoint == -1)
+			continue;
+		
+		draw_chart_line(data[i], first_datapoint, last_datapoint, min_temp, max_temp, all_colors[i]);
+	}
+
+	return 0;
+}
+
+static void draw_chart_axes(uint16_t color) {
+	lcd_draw_line(OFFSET, DISPLAY_H - OFFSET, DISPLAY_W - OFFSET, DISPLAY_H - OFFSET, color);
+	lcd_draw_line(OFFSET, OFFSET, OFFSET, DISPLAY_H - OFFSET, color);
 }
 /* USER CODE END 0 */
 
@@ -172,14 +214,9 @@ int main(void) {
 	lcd_init();
 	onewire_init(&htim6);
 
-	datapoint data[] = {
-		{.time=-110000, .temp=10000},
-		{.time=-80000, .temp=40000},
-		{.time=-40000, .temp=30000},
-		{.time=0, .temp=0},
-	};
-	draw_chart(data, sizeof(data) / sizeof(data[0]));
-	for(;;) {}
+	datapoint all_datapoints[MAX_ONEWIRE_DEVICES][MAX_CHART_DATAPOINTS];
+	int datapoints_len[MAX_ONEWIRE_DEVICES];
+	memset(datapoints_len, 0, sizeof(datapoints_len));
 
 	uint64_t roms[MAX_ONEWIRE_DEVICES];
 	onewire_start_search();
@@ -205,17 +242,20 @@ int main(void) {
 	}
 
 	for(int i = 0; i < device_cnt; i++) {
-		onewire_set_resolution(roms[i], ONEWIRE_RESOLUTION_9BIT);
+		onewire_set_resolution(roms[i], ONEWIRE_RESOLUTION_11BIT);
 	}
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
+	uint32_t last_reading = 0;
 	while (1) {
 		switch(main_loop_state) {
 			case START_READINGS:
-				onewire_request_conversion_multiple(roms, device_cnt);
-				main_loop_state = WAIT_FOR_READINGS;
+				if(HAL_GetTick() - last_reading >= 1000) {
+					onewire_request_conversion_multiple(roms, device_cnt);
+					main_loop_state = WAIT_FOR_READINGS;
+				}
 				break;
 			case WAIT_FOR_READINGS:
 				if(onewire_get_request_status())
@@ -223,7 +263,7 @@ int main(void) {
 				
 				main_loop_state = DISPLAY_READINGS;
 				break;
-			case DISPLAY_READINGS: ;
+			/*case DISPLAY_READINGS: ;
 				char buffer[32];
 				lcd_text_set_cursor(0, 0);
 				for(int i = 0; i < device_cnt; i++) {
@@ -232,6 +272,49 @@ int main(void) {
 					lcd_text_printf(COLOR_WHITE, "Temp %i: %s " SPECIAL_DEGREE "C", i+1, buffer);
 					lcd_text_newline_with_clearing();
 				}
+				main_loop_state = START_READINGS;
+				break;*/
+			case DISPLAY_READINGS: ;
+				uint32_t current_time = HAL_GetTick();
+				last_reading = current_time;
+				for(int i = 0; i < device_cnt; i++) {
+					uint16_t temp_raw = onewire_read_temperature(roms[i]);
+
+					int current_index = datapoints_len[i]++;
+					assert(current_index < MAX_CHART_DATAPOINTS);
+					all_datapoints[i][current_index].time = current_time;
+					all_datapoints[i][current_index].temp = temp_raw;
+
+					// Cleanup old readings
+					int start = get_first_index(all_datapoints[i], datapoints_len[i], current_time + oldest_timestamp);
+					if(start > 0) {
+						printf("Removing: (%i) CT: %u\n", i, current_time);
+						datapoints_len[i] -= start;
+						memmove(all_datapoints[i], all_datapoints[i] + start, sizeof(datapoint) * datapoints_len[i]);
+					}
+				}
+
+				printf("Printing @%" PRIu32 ":\n", current_time);
+				for(int i = 0; i < device_cnt; i++) {
+					printf("Device #%i:\n", i+1);
+					for(int j = 0; j < datapoints_len[i]; j++) {
+						printf("%i %i", all_datapoints[i][j].time, all_datapoints[i][j].temp);
+						printf("\n");
+						all_datapoints[i][j].time -= current_time;
+					}
+					printf("\n");
+				}
+
+
+				lcd_clear_rect(OFFSET + 1, 0, DISPLAY_W, DISPLAY_H - OFFSET - 1);
+				draw_chart(all_datapoints, datapoints_len, device_cnt);
+				draw_chart_axes(COLOR_WHITE);
+				for(int i = 0; i < device_cnt; i++) {
+					for(int j = 0; j < datapoints_len[i]; j++) {
+						all_datapoints[i][j].time += current_time;
+					}
+				}
+
 				main_loop_state = START_READINGS;
 				break;
 		}
