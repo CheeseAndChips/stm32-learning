@@ -6,12 +6,6 @@
 
 /* FONT BEGIN */
 
-#define FONT_H 24
-#define FONT_W 12
-
-#define DISPLAY_H 240
-#define DISPLAY_W 320
-
 #define LINE_LENGTH (DISPLAY_W / FONT_W)
 #define LINE_COUNT (DISPLAY_H / FONT_H)
 
@@ -98,23 +92,24 @@ static inline void lcd_data_write(uint8_t data) {
 void lcd_set_address(int16_t y1, int16_t y2, int16_t x1, int16_t x2) {
 	lcd_command_write(0x2a);
 	lcd_data_write(y1 >> 8);
-	lcd_data_write(y1);
+	lcd_data_write(y1 & 0xff);
 	lcd_data_write(y2 >> 8);
-	lcd_data_write(y2);
+	lcd_data_write(y2 & 0xff);
 
 	lcd_command_write(0x2b);
 	lcd_data_write(x1 >> 8);
-	lcd_data_write(x1);
+	lcd_data_write(x1 & 0xff);
 	lcd_data_write(x2 >> 8);
-	lcd_data_write(x2);
+	lcd_data_write(x2 & 0xff);
 }
 
-void lcd_set_pixel(int16_t x, int16_t y, int16_t color) {
+void lcd_set_pixel(int16_t x, int16_t y, uint16_t color) {
 	if(x >= 0 && y >= 0 && x < DISPLAY_W && y < DISPLAY_H) {
 		lcd_set_address(y, y+1, x, x+1);
 		lcd_command_write(0x2c);
+
 		lcd_data_write(color >> 8);
-		lcd_data_write(color);
+		lcd_data_write(color & 0xff);
 	}
 }
 
@@ -138,7 +133,7 @@ void lcd_init(void) {
 
 	// Memory access control
 	lcd_command_write(0x36);
-	lcd_data_write(0x00);
+	lcd_data_write(0x08);
 
 	// pixel format
 	lcd_command_write(0x3a);
@@ -280,7 +275,7 @@ static int16_t abs16(int16_t x) {
 	else return x;
 }
 
-void lcd_draw_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t color) {
+void lcd_draw_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
 	do_swap = 0;
 	if(abs16(y1 - y0) < abs16(x1 - x0)){
         if(x0 > x1) {

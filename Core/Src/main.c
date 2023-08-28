@@ -115,22 +115,8 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
 	lcd_init();
-
-	for(;;) {
-		int16_t a, b, c, d;
-		printf("Enter numbers: ");
-		fflush(stdout);
-		scanf("%" SCNi16 " %" SCNi16 " %" SCNi16 " %" SCNi16, &a, &b, &c, &d);
-		printf("Clearing @%u\n", HAL_GetTick());
-		lcd_clear();
-		printf("Drawing @%u\n", HAL_GetTick());
-		lcd_draw_line(a, b, c, d, 0xffff);
-		printf("Done @%u\n", HAL_GetTick());
-		HAL_Delay(1000);
-	}
-
 	onewire_init(&htim6);
-	
+
 	uint64_t roms[MAX_ONEWIRE_DEVICES];
 	onewire_start_search();
 	int device_cnt = 0;
