@@ -121,8 +121,11 @@ int main(void) {
 		printf("Enter numbers: ");
 		fflush(stdout);
 		scanf("%" SCNi16 " %" SCNi16 " %" SCNi16 " %" SCNi16, &a, &b, &c, &d);
+		printf("Clearing @%u\n", HAL_GetTick());
 		lcd_clear();
+		printf("Drawing @%u\n", HAL_GetTick());
 		lcd_draw_line(a, b, c, d, 0xffff);
+		printf("Done @%u\n", HAL_GetTick());
 		HAL_Delay(1000);
 	}
 

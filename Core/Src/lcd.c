@@ -156,8 +156,11 @@ void lcd_init(void) {
 void lcd_clear(void) {
 	lcd_set_address(0, DISPLAY_H, 0, DISPLAY_W);
 	lcd_command_write(0x2c);
-	for(int i = 0; i < 2*DISPLAY_H*DISPLAY_W; i++) {
-		lcd_data_write(0x0);
+	SET_H(LCD_RS);
+	lcd_write(0x00);
+	for(int i = 0; i < 2*DISPLAY_H*DISPLAY_W - 1; i++) {
+		SET_L(LCD_WR);
+		SET_H(LCD_WR);
 	}
 
 	cursor_pos.row = 0;
