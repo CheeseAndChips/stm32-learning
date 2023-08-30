@@ -42,6 +42,8 @@ void lcd_text_set_cursor(uint8_t x, uint8_t y);
 void lcd_text_putc(uint16_t color, char c);
 void lcd_text_puts(uint16_t color, const char *str);
 void lcd_text_printf(uint16_t color, const char *format, ...);
+void lcd_puts_freely(int16_t x, int16_t y, uint16_t color, const char *str);
+void lcd_printf_freely(int16_t x, int16_t y, uint16_t color, const char *format, ...);
 void lcd_text_newline_with_clearing(void);
 
 #endif /* INC_LCD_H_ */

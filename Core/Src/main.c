@@ -102,7 +102,7 @@ static const uint16_t all_colors[] = {
 };
 
 #define MAX_CHART_DATAPOINTS 128
-#define OFFSET 20
+#define OFFSET 50
 const int oldest_timestamp = -2 * 60 * 1000; // 2 minutes
 static void draw_chart_line(datapoint *data, int datapoint_count, uint16_t min_temp, uint16_t max_temp, uint16_t color) {
 	int32_t prev_temp = map_value(min_temp, max_temp, DISPLAY_H - OFFSET, OFFSET, data[0].temp);
@@ -134,8 +134,27 @@ static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints
 
 	int16_t temp_amplitude = max_temp - min_temp;
 
+	int16_t markings[] = {
+		(min_temp & ~0x7) + 0x8,
+		(max_temp & ~0x7) - 0x8,
+	};
+
 	min_temp -= temp_amplitude / 4;
 	max_temp += temp_amplitude / 4;
+
+	lcd_clear_rect(0, 0, OFFSET, DISPLAY_H);
+
+	char axis_buffer[128];
+	for(int i = 0; i < sizeof(markings) / sizeof(markings[0]); i++) {
+		int32_t location = map_value(min_temp, max_temp, DISPLAY_H - OFFSET, OFFSET, markings[i]);
+		if(!(OFFSET <= location && location <= DISPLAY_H - OFFSET)) {
+			printf("Warn: bad location (%i) with temperature %u\n", location, markings[0]);
+			continue;
+		}
+		onewire_format_temperature(markings[i], axis_buffer, sizeof(axis_buffer));
+		lcd_puts_freely(0, location - FONT_H / 2, COLOR_WHITE, axis_buffer);
+	}
+
 	for(int i = 0; i < device_cnt; i++) {
 		draw_chart_line(data[i], datapoints_len[i], min_temp, max_temp, all_colors[i]);
 	}

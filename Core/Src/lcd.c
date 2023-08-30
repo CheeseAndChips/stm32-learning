@@ -62,6 +62,7 @@ static inline void lcd_command_write(uint8_t command);
 static inline void lcd_data_write(uint8_t data);
 static inline void lcd_data_write16(uint16_t data);
 static void lcd_set_address(int16_t y1, int16_t y2, int16_t x1, int16_t x2);
+static void lcd_text_start_write_at(int16_t x, int16_t y);
 static void lcd_text_start_write_at_cursor(void);
 static void lcd_text_write_symbol_raw(const char *ch, uint16_t color);
 static void lcd_draw_line_octant(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t color, uint8_t swap);
@@ -116,11 +117,16 @@ static void lcd_set_address(int16_t y1, int16_t y2, int16_t x1, int16_t x2) {
 	lcd_command_write(0x2b);
 	lcd_data_write16(x1);
 	lcd_data_write16(x2);
+
+	lcd_command_write(0x2c);
+}
+
+static void lcd_text_start_write_at(int16_t x, int16_t y) {
+	lcd_set_address(y, y + FONT_H - 1, x, DISPLAY_W);
 }
 
 static void lcd_text_start_write_at_cursor(void) {
-	lcd_set_address(1 + cursor_pos.row * FONT_H, (1 + cursor_pos.row) * FONT_H, cursor_pos.col * FONT_W, DISPLAY_W);
-	lcd_command_write(0x2c);
+	lcd_text_start_write_at(cursor_pos.col * FONT_W, cursor_pos.row * FONT_H);
 }
 
 static void lcd_text_write_symbol_raw(const char *ch, uint16_t color) {
@@ -212,7 +218,6 @@ void lcd_clear_rect(int16_t x0, int16_t y0, int16_t x1, int16_t y1) {
 	int16_t dx = (x1 - x0);
 	int16_t dy = (y1 - y0);
 	lcd_set_address(y0, y1, x0, x1);
-	lcd_command_write(0x2c);
 	SET_H(LCD_RS);
 	lcd_write(0x00);
 
@@ -225,7 +230,6 @@ void lcd_clear_rect(int16_t x0, int16_t y0, int16_t x1, int16_t y1) {
 void lcd_set_pixel(int16_t x, int16_t y, uint16_t color) {
 	if(x >= 0 && y >= 0 && x < DISPLAY_W && y < DISPLAY_H) {
 		lcd_set_address(y, y+1, x, x+1);
-		lcd_command_write(0x2c);
 		lcd_data_write16(color);
 	}
 }
@@ -289,9 +293,28 @@ void lcd_text_puts(uint16_t color, const char *str) {
 void lcd_text_printf(uint16_t color, const char *format, ...) {
 	va_list args;
 	va_start(args, format);
-	char buf[LINE_LENGTH + 1];
+	char buf[LINE_LENGTH + 1]; // TODO: bad buffer length (for multi-line)
 	vsnprintf(buf, LINE_LENGTH + 1, format, args);
 	lcd_text_puts(color, buf);
+	va_end(args);
+}
+
+void lcd_puts_freely(int16_t x, int16_t y, uint16_t color, const char *str) {
+	size_t len = strlen(str);
+	lcd_text_start_write_at(x, y);
+	for(size_t i = 0; i < len; i++) {
+		char c = str[i];
+		const char *symbol_data = (c & 0x80) ? get_special_char_data(c ^ 0x80) : get_char_data(c - ' ');
+		lcd_text_write_symbol_raw(symbol_data, color);
+	}
+}
+
+void lcd_printf_freely(int16_t x, int16_t y, uint16_t color, const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	char buf[LINE_LENGTH + 1];
+	vsnprintf(buf, LINE_LENGTH + 1, format, args);
+	lcd_puts_freely(x, y, color, buf);
 	va_end(args);
 }
 
