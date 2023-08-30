@@ -102,14 +102,17 @@ static const uint16_t all_colors[] = {
 };
 
 #define MAX_CHART_DATAPOINTS 128
-#define OFFSET 50
+#define MARGIN_TOP 10
+#define MARGIN_BOTTOM 10
+#define MARGIN_LEFT 50
+#define MARGIN_RIGHT 10
 const int oldest_timestamp = -2 * 60 * 1000; // 2 minutes
 static void draw_chart_line(datapoint *data, int datapoint_count, uint16_t min_temp, uint16_t max_temp, uint16_t color) {
-	int32_t prev_temp = map_value(min_temp, max_temp, DISPLAY_H - OFFSET, OFFSET, data[0].temp);
-	int32_t prev_time = map_value(oldest_timestamp, 0, OFFSET, DISPLAY_W - OFFSET, data[0].time);
+	int32_t prev_temp = map_value(min_temp, max_temp, DISPLAY_H - MARGIN_BOTTOM, MARGIN_TOP, data[0].temp);
+	int32_t prev_time = map_value(oldest_timestamp, 0, MARGIN_LEFT, DISPLAY_W - MARGIN_RIGHT, data[0].time);
 	for(int i = 1; i < datapoint_count; i++) {
-		int32_t curr_temp = map_value(min_temp, max_temp, DISPLAY_H - OFFSET, OFFSET, data[i].temp);
-		int32_t curr_time = map_value(oldest_timestamp, 0, OFFSET, DISPLAY_W - OFFSET, data[i].time);
+		int32_t curr_temp = map_value(min_temp, max_temp, DISPLAY_H - MARGIN_BOTTOM, MARGIN_TOP, data[i].temp);
+		int32_t curr_time = map_value(oldest_timestamp, 0, MARGIN_LEFT, DISPLAY_W - MARGIN_RIGHT, data[i].time);
 
 		lcd_draw_line(prev_time, prev_temp, curr_time, curr_temp, color);
 
@@ -142,19 +145,17 @@ static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints
 	min_temp -= temp_amplitude / 4;
 	max_temp += temp_amplitude / 4;
 
-	lcd_clear_rect(0, 0, OFFSET, DISPLAY_H);
-
 	char axis_buffer[128];
 	for(int i = 0; i < sizeof(markings) / sizeof(markings[0]); i++) {
-		int32_t location = map_value(min_temp, max_temp, DISPLAY_H - OFFSET, OFFSET, markings[i]);
-		if(!(OFFSET <= location && location <= DISPLAY_H - OFFSET)) {
+		int32_t location = map_value(min_temp, max_temp, DISPLAY_H - MARGIN_BOTTOM, MARGIN_TOP, markings[i]);
+		if(!(min_temp <= markings[i] && markings[i] <= max_temp)) {
 			printf("Warn: bad location (%i) with temperature %u\n", location, markings[0]);
 			continue;
 		}
 		onewire_format_temperature(markings[i], axis_buffer, sizeof(axis_buffer));
 		lcd_puts_freely(0, location - FONT_H / 2, COLOR_WHITE, axis_buffer);
 
-		for(int j = OFFSET + 1; j < DISPLAY_W - OFFSET; j++) {
+		for(int j = MARGIN_LEFT + 1; j < DISPLAY_W - MARGIN_RIGHT; j++) {
 			if(j % 16 < 8) {
 				lcd_set_pixel(j, location, COMBINE_COLOR_FLOAT(0.4, 0.4, 0.4));
 			}
@@ -169,8 +170,8 @@ static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints
 }
 
 static void draw_chart_axes(uint16_t color) {
-	lcd_draw_line(OFFSET, DISPLAY_H - OFFSET, DISPLAY_W - OFFSET, DISPLAY_H - OFFSET, color);
-	lcd_draw_line(OFFSET, OFFSET, OFFSET, DISPLAY_H - OFFSET, color);
+	lcd_draw_line(MARGIN_LEFT, DISPLAY_H - MARGIN_BOTTOM, DISPLAY_W - MARGIN_RIGHT, DISPLAY_H - MARGIN_BOTTOM, color);
+	lcd_draw_line(MARGIN_LEFT, MARGIN_TOP, MARGIN_LEFT, DISPLAY_H - MARGIN_BOTTOM, color);
 }
 
 static void clean_old_datapoints(datapoint all_datapoints[][MAX_CHART_DATAPOINTS], int datapoints_len[], int device_cnt) {
@@ -314,9 +315,9 @@ int main(void) {
 
 				clean_old_datapoints(all_datapoints, datapoints_len, device_cnt);
 
-				lcd_clear_rect(OFFSET + 1, 0, DISPLAY_W, DISPLAY_H - OFFSET - 1);
-				draw_chart(all_datapoints, datapoints_len, device_cnt);
+				lcd_clear();
 				draw_chart_axes(COLOR_WHITE);
+				draw_chart(all_datapoints, datapoints_len, device_cnt);
 
 				for(int i = 0; i < device_cnt; i++) {
 					for(int j = 0; j < datapoints_len[i]; j++) {
