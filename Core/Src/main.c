@@ -153,6 +153,12 @@ static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints
 		}
 		onewire_format_temperature(markings[i], axis_buffer, sizeof(axis_buffer));
 		lcd_puts_freely(0, location - FONT_H / 2, COLOR_WHITE, axis_buffer);
+
+		for(int j = OFFSET + 1; j < DISPLAY_W - OFFSET; j++) {
+			if(j % 16 < 8) {
+				lcd_set_pixel(j, location, COMBINE_COLOR_FLOAT(0.4, 0.4, 0.4));
+			}
+		}
 	}
 
 	for(int i = 0; i < device_cnt; i++) {
@@ -254,7 +260,7 @@ int main(void) {
 	/* USER CODE BEGIN WHILE */
 	uint32_t last_reading = 0, current_time;
 	uint32_t last_button_press = 0;
-	uint8_t show_chart = 0;
+	uint8_t show_chart = 1;
 	while (1) {
 		if(HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin) == GPIO_PIN_SET && last_button_press + 1000 < HAL_GetTick()) {
 			last_button_press = HAL_GetTick();
@@ -262,7 +268,6 @@ int main(void) {
 			show_chart = !show_chart;
 			if(show_chart) {
 				memset(datapoints_len, 0, sizeof(datapoints_len));
-				draw_chart_axes(COLOR_WHITE);
 			}
 		}
 
