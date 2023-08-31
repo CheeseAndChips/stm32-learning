@@ -14,11 +14,11 @@ extern char _binary_font_hex_start;
 extern char _binary_font_hex_end;
 extern char _binary_font_hex_size;
 
-size_t get_font_size() {
+static size_t get_font_size() {
 	return (size_t)(&_binary_font_hex_size);
 }
 
-const char *get_char_data(uint8_t c) {
+static const char *get_char_data(uint8_t c) {
 	const char *start = &_binary_font_hex_start;
 	const char *ret = start + c * CHAR_SIZE;
 	assert(ret <= &_binary_font_hex_end);
@@ -29,15 +29,20 @@ extern char _binary_font_special_hex_start;
 extern char _binary_font_special_hex_end;
 extern char _binary_font_special_hex_size;
 
-size_t get_special_font_size() {
+static size_t get_special_font_size() {
 	return (size_t)(&_binary_font_hex_size);
 }
 
-const char *get_special_char_data(uint8_t c) {
+static const char *get_special_char_data(uint8_t c) {
 	const char *start = &_binary_font_special_hex_start;
 	const char *ret = start + c * CHAR_SIZE;
 	assert(ret <= &_binary_font_special_hex_end);
 	return ret;
+}
+
+const char *get_symbol_data(uint8_t c) {
+	if(c & 0x80) return get_special_char_data(c & 0x7f);
+	else return get_char_data(c - ' ');
 }
 
 /* FONT END */
@@ -50,7 +55,23 @@ const char *get_special_char_data(uint8_t c) {
 #define SET_L(pin) GET_GPIO_PORT(pin)->BSRR |= (GET_GPIO_MASK(pin) << 16)
 #define GET_BSRR_MASK(pin, data) (GET_GPIO_MASK(LCD_D ## pin) << (16 * !(((data) >> pin) & 1)))
 
+#if COLOR_BLACK != 0
+#error COLOR_BACK should be 0
+#endif
+
+static uint16_t color_table[16] = { // max 16 colors allowed
+	COMBINE_COLOR_FLOAT(0, 0, 0), // COLOR_BLACK
+	COMBINE_COLOR_FLOAT(1, 1, 1), // COLOR_WHITE
+	COMBINE_COLOR_FLOAT(1, 0, 0), // COLOR_RED
+	COMBINE_COLOR_FLOAT(0, 1, 0), // COLOR_GREEN
+	COMBINE_COLOR_FLOAT(0, 0, 1), // COLOR_BLUE
+	COMBINE_COLOR_FLOAT(1, 0.8, 0), // COLOR_ORANGE
+	COMBINE_COLOR_FLOAT(1, 1, 0), // COLOR_YELLOW
+	COMBINE_COLOR_FLOAT(0.4, 0.4, 0.4), // COLOR_GRAY
+};
+
 static cursor_pos_t cursor_pos;
+static uint8_t screen_buffer[DISPLAY_H*DISPLAY_W];
 
 /*
  * Private functions
@@ -62,11 +83,8 @@ static inline void lcd_command_write(uint8_t command);
 static inline void lcd_data_write(uint8_t data);
 static inline void lcd_data_write16(uint16_t data);
 static void lcd_set_address(int16_t y1, int16_t y2, int16_t x1, int16_t x2);
-static void lcd_text_start_write_at(int16_t x, int16_t y);
-static void lcd_text_start_write_at_cursor(void);
-static void lcd_text_write_symbol_raw(const char *ch, uint16_t color);
-static void lcd_draw_line_octant(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t color, uint8_t swap);
-
+static void lcd_text_write_symbol_raw(int16_t x, int16_t y, const char *ch, color_t color);
+static void lcd_draw_line_octant(int16_t x0, int16_t y0, int16_t x1, int16_t y1, color_t color, uint8_t swap);
 
 static inline int16_t abs16(int16_t x) {
 	if(x < 0) return -x;
@@ -121,31 +139,26 @@ static void lcd_set_address(int16_t y1, int16_t y2, int16_t x1, int16_t x2) {
 	lcd_command_write(0x2c);
 }
 
-static void lcd_text_start_write_at(int16_t x, int16_t y) {
-	lcd_set_address(y, y + FONT_H - 1, x, DISPLAY_W);
-}
-
-static void lcd_text_start_write_at_cursor(void) {
-	lcd_text_start_write_at(cursor_pos.col * FONT_W, cursor_pos.row * FONT_H);
-}
-
-static void lcd_text_write_symbol_raw(const char *ch, uint16_t color) {
+static void lcd_text_write_symbol_raw(int16_t x, int16_t y, const char *ch, color_t color) {
 	int8_t shift = 7;
-	for(int i = 0; i < FONT_W * FONT_H; i++) {
-		if(*ch & (1 << shift)) {
-			lcd_data_write16(color);
-		} else {
-			lcd_data_write16(0x0000);
-		}
-		if(--shift < 0) {
-			shift = 7;
-			ch++;
+	for(int i = 0; i < FONT_W; i++) {
+		for(int j = 0; j < FONT_H; j++) {
+			if(*ch & (1 << shift)) {
+				lcd_set_pixel(i + x, j + y, color);
+			} else {
+				lcd_set_pixel(i + x, j + y, COLOR_BLACK);
+			}
+
+			if(--shift < 0) {
+				shift = 7;
+				ch++;
+			}
 		}
 	}
 }
 
 // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
-static void lcd_draw_line_octant(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t color, uint8_t swap) {
+static void lcd_draw_line_octant(int16_t x0, int16_t y0, int16_t x1, int16_t y1, color_t color, uint8_t swap) {
 	int16_t dx, dy, yi, D, y;
 
 	dx = x1 - x0;
@@ -205,36 +218,63 @@ void lcd_init(void) {
 	HAL_Delay(10);
 	lcd_command_write(0x29); // display on
 
-	lcd_clear();
-}
-
-void lcd_clear(void) {
-	lcd_clear_rect(0, 0, DISPLAY_W, DISPLAY_H);
-	cursor_pos.row = 0;
-	cursor_pos.col = 0;
-}
-
-void lcd_clear_rect(int16_t x0, int16_t y0, int16_t x1, int16_t y1) {
-	int16_t dx = (x1 - x0);
-	int16_t dy = (y1 - y0);
-	lcd_set_address(y0, y1, x0, x1);
+	lcd_set_address(0, DISPLAY_H, 0, DISPLAY_W);
 	SET_H(LCD_RS);
 	lcd_write(0x00);
+	for(int i = 0; i < 2*DISPLAY_W*DISPLAY_H - 1; i++) {
+		SET_L(LCD_WR);
+		SET_H(LCD_WR);
+	}
 
-	for(int i = 0; i < 2*dx*dy - 1; i++) {
+	lcd_clear();
+
+	HAL_Delay(4000);
+
+	lcd_set_address(0, DISPLAY_H, 0, DISPLAY_W);
+	SET_H(LCD_RS);
+	lcd_write(0xff);
+	for(int i = 0; i < 2*DISPLAY_W*DISPLAY_H - 1; i++) {
 		SET_L(LCD_WR);
 		SET_H(LCD_WR);
 	}
 }
 
-void lcd_set_pixel(int16_t x, int16_t y, uint16_t color) {
-	if(x >= 0 && y >= 0 && x < DISPLAY_W && y < DISPLAY_H) {
-		lcd_set_address(y, y+1, x, x+1);
-		lcd_data_write16(color);
+void lcd_clear(void) {
+	memset(screen_buffer, 0, sizeof(screen_buffer));
+	cursor_pos.row = 0;
+	cursor_pos.col = 0;
+}
+
+void lcd_dump_buffer(void) {
+	lcd_set_address(0, DISPLAY_H, 0, DISPLAY_W);
+	for(int i = 0; i < DISPLAY_W * DISPLAY_H / 2; i++) {
+		color_t c1, c2;
+		c1 = screen_buffer[i] >> 4;
+		c2 = screen_buffer[i] & 0x0f;
+		uint16_t w1 = color_table[c1];
+		uint16_t w2 = color_table[c2];
+		//if(c1 || c2)
+	//		printf("%u %u\n", w1, w2);
+		//w1 = 0xffff;
+		//w2 = 0xffff;
+		lcd_data_write16(w1);
+		lcd_data_write16(w2);
 	}
 }
 
-void lcd_draw_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
+void lcd_set_pixel(int16_t x, int16_t y, uint8_t color_index) {
+	if(x >= 0 && y >= 0 && x < DISPLAY_W && y < DISPLAY_H) {
+		int index = x * DISPLAY_H + y;
+		//printf("Setting index %i\n", index);
+		//printf("Setting index %i to color %x\n", index, color_index);
+		uint8_t *dest = &screen_buffer[index / 2];
+
+		if(index & 1) { *dest = ((*dest & 0xf0) | color_index); }
+		else { *dest = ((*dest & 0x0f) | (color_index << 4)); }
+	}
+}
+
+void lcd_draw_line(int16_t x0, int16_t y0, int16_t x1, int16_t y1, color_t color) {
 	if(abs16(y1 - y0) < abs16(x1 - x0)){
         if(x0 > x1) {
             lcd_draw_line_octant(x1, y1, x0, y0, color, 0);
@@ -255,42 +295,32 @@ void lcd_text_set_cursor(uint8_t x, uint8_t y) {
 	cursor_pos.col = y;
 }
 
-void lcd_text_putc(uint16_t color, char c) {
-	char buffer[2];
-	buffer[0] = c;
-	buffer[1] = '\0';
-	lcd_text_puts(color, buffer);
-}
-
-void lcd_text_puts(uint16_t color, const char *str) {
-	lcd_text_start_write_at_cursor();
-	while(*str) {
-		char c = *str;
-		fflush(stdout);
-		if(c == '\b') {
-			if(cursor_pos.col) {
-				cursor_pos.col--;
-				lcd_text_start_write_at_cursor();
-				lcd_text_write_symbol_raw(0, 0x0000);
-				lcd_text_start_write_at_cursor();
-			}
-		} else if(c == '\n') {
-			cursor_pos.row++;
-			cursor_pos.col = 0;
-			lcd_text_start_write_at_cursor();
-		} else {
-			if(cursor_pos.col < LINE_LENGTH) {
-				const char *symbol_data = (c & 0x80) ? get_special_char_data(c ^ 0x80) : get_char_data(c - ' ');
-				lcd_text_write_symbol_raw(symbol_data, color);
-				cursor_pos.col++;
-			}
+void lcd_text_putc(color_t color, char c) {
+	if(c == '\b') {
+		if(cursor_pos.col) {
+			cursor_pos.col--;
+			const char *space = get_char_data(' ');
+			lcd_text_write_symbol_raw(cursor_pos.col * FONT_W, cursor_pos.row * FONT_H, space, color);
 		}
-
-		str++;
+	} else if(c == '\n') {
+		cursor_pos.row++;
+		cursor_pos.col = 0;
+	} else {
+		if(cursor_pos.col < LINE_LENGTH) {
+			const char *symbol_data = get_symbol_data(c);
+			lcd_text_write_symbol_raw(cursor_pos.col * FONT_W, cursor_pos.row * FONT_H, symbol_data, color);
+			cursor_pos.col++;
+		}
 	}
 }
 
-void lcd_text_printf(uint16_t color, const char *format, ...) {
+void lcd_text_puts(color_t color, const char *str) {
+	while(*str) {
+		lcd_text_putc(color, *str++);
+	}
+}
+
+void lcd_text_printf(color_t color, const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 	char buf[LINE_LENGTH + 1]; // TODO: bad buffer length (for multi-line)
@@ -299,17 +329,19 @@ void lcd_text_printf(uint16_t color, const char *format, ...) {
 	va_end(args);
 }
 
-void lcd_puts_freely(int16_t x, int16_t y, uint16_t color, const char *str) {
+void lcd_putc_freely(int16_t x, int16_t y, color_t color, char c) {
+	const char *symbol_data = get_symbol_data(c);
+	lcd_text_write_symbol_raw(x, y, symbol_data, color);
+}
+
+void lcd_puts_freely(int16_t x, int16_t y, color_t color, const char *str) {
 	size_t len = strlen(str);
-	lcd_text_start_write_at(x, y);
 	for(size_t i = 0; i < len; i++) {
-		char c = str[i];
-		const char *symbol_data = (c & 0x80) ? get_special_char_data(c ^ 0x80) : get_char_data(c - ' ');
-		lcd_text_write_symbol_raw(symbol_data, color);
+		lcd_putc_freely(x + i*FONT_W, y, color, str[i]);
 	}
 }
 
-void lcd_printf_freely(int16_t x, int16_t y, uint16_t color, const char *format, ...) {
+void lcd_printf_freely(int16_t x, int16_t y, color_t color, const char *format, ...) {
 	va_list args;
 	va_start(args, format);
 	char buf[LINE_LENGTH + 1];

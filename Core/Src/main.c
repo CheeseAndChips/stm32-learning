@@ -157,7 +157,7 @@ static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints
 
 		for(int j = MARGIN_LEFT + 1; j < DISPLAY_W - MARGIN_RIGHT; j++) {
 			if(j % 16 < 8) {
-				lcd_set_pixel(j, location, COMBINE_COLOR_FLOAT(0.4, 0.4, 0.4));
+				lcd_set_pixel(j, location, COLOR_GRAY);
 			}
 		}
 	}
@@ -318,6 +318,7 @@ int main(void) {
 				lcd_clear();
 				draw_chart_axes(COLOR_WHITE);
 				draw_chart(all_datapoints, datapoints_len, device_cnt);
+				lcd_dump_buffer();
 
 				for(int i = 0; i < device_cnt; i++) {
 					for(int j = 0; j < datapoints_len[i]; j++) {
