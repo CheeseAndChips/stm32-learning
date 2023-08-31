@@ -157,7 +157,7 @@ static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints
 
 		for(int j = MARGIN_LEFT + 1; j < DISPLAY_W - MARGIN_RIGHT; j++) {
 			if(j % 16 < 8) {
-				lcd_set_pixel(j, location, COMBINE_COLOR_FLOAT(0.4, 0.4, 0.4));
+				lcd_set_pixel(j, location, COLOR_GRAY);
 			}
 		}
 	}
@@ -223,6 +223,14 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
 	lcd_init();
+	for(int i = 0; i < 16; i++) {
+		if(i & 1) lcd_set_pixel(0, i, COLOR_RED);
+		else lcd_set_pixel(0, i, COLOR_BLUE);
+	}
+	lcd_set_pixel(1, 0, COLOR_GRAY);
+	lcd_set_pixel(2, 0, COLOR_GRAY);
+	lcd_dump_buffer();
+	for(;;) { }
 	onewire_init(&htim6);
 
 	datapoint all_datapoints[MAX_ONEWIRE_DEVICES][MAX_CHART_DATAPOINTS];
@@ -318,6 +326,7 @@ int main(void) {
 				lcd_clear();
 				draw_chart_axes(COLOR_WHITE);
 				draw_chart(all_datapoints, datapoints_len, device_cnt);
+				lcd_dump_buffer();
 
 				for(int i = 0; i < device_cnt; i++) {
 					for(int j = 0; j < datapoints_len[i]; j++) {
