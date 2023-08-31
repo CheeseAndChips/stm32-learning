@@ -223,14 +223,6 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
 	lcd_init();
-	for(int i = 0; i < 16; i++) {
-		if(i & 1) lcd_set_pixel(0, i, COLOR_RED);
-		else lcd_set_pixel(0, i, COLOR_BLUE);
-	}
-	lcd_set_pixel(1, 0, COLOR_GRAY);
-	lcd_set_pixel(2, 0, COLOR_GRAY);
-	lcd_dump_buffer();
-	for(;;) { }
 	onewire_init(&htim6);
 
 	datapoint all_datapoints[MAX_ONEWIRE_DEVICES][MAX_CHART_DATAPOINTS];

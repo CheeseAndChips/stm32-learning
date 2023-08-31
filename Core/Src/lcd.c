@@ -42,7 +42,7 @@ static const char *get_special_char_data(uint8_t c) {
 
 const char *get_symbol_data(uint8_t c) {
 	if(c & 0x80) return get_special_char_data(c & 0x7f);
-	else return get_char_data(c);
+	else return get_char_data(c - ' ');
 }
 
 /* FONT END */
@@ -141,12 +141,12 @@ static void lcd_set_address(int16_t y1, int16_t y2, int16_t x1, int16_t x2) {
 
 static void lcd_text_write_symbol_raw(int16_t x, int16_t y, const char *ch, color_t color) {
 	int8_t shift = 7;
-	for(int i = 0; i < FONT_H; i++) {
-		for(int j = 0; j < FONT_W; j++) {
+	for(int i = 0; i < FONT_W; i++) {
+		for(int j = 0; j < FONT_H; j++) {
 			if(*ch & (1 << shift)) {
-				lcd_set_pixel(j + x, i + y, color);
+				lcd_set_pixel(i + x, j + y, color);
 			} else {
-				lcd_set_pixel(j + x, i + y, COLOR_BLACK);
+				lcd_set_pixel(i + x, j + y, COLOR_BLACK);
 			}
 
 			if(--shift < 0) {
@@ -189,10 +189,6 @@ static void lcd_draw_line_octant(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
  */
 
 void lcd_init(void) {
-	for(int i = 0; i < sizeof(color_table) / sizeof(color_table[0]); i++) {
-		printf("%u: %u\n", i+1, color_table[i]);
-	}
-
 	SET_H(LCD_RST);
 	HAL_Delay(20);
 	SET_L(LCD_RST);
@@ -231,6 +227,16 @@ void lcd_init(void) {
 	}
 
 	lcd_clear();
+
+	HAL_Delay(4000);
+
+	lcd_set_address(0, DISPLAY_H, 0, DISPLAY_W);
+	SET_H(LCD_RS);
+	lcd_write(0xff);
+	for(int i = 0; i < 2*DISPLAY_W*DISPLAY_H - 1; i++) {
+		SET_L(LCD_WR);
+		SET_H(LCD_WR);
+	}
 }
 
 void lcd_clear(void) {
@@ -240,14 +246,6 @@ void lcd_clear(void) {
 }
 
 void lcd_dump_buffer(void) {
-	for(int i = 0; i < 0x200; i += 0x10) {
-		printf("%04x: ", i);
-		for(int j = 0; j < 0x10 / 2; j++) {
-			printf("%02x%02x ", screen_buffer[i + 2*j], screen_buffer[i + 2*j + 1]);
-		}
-		printf("\n");
-	}
-
 	lcd_set_address(0, DISPLAY_H, 0, DISPLAY_W);
 	for(int i = 0; i < DISPLAY_W * DISPLAY_H / 2; i++) {
 		color_t c1, c2;
@@ -259,8 +257,6 @@ void lcd_dump_buffer(void) {
 	//		printf("%u %u\n", w1, w2);
 		//w1 = 0xffff;
 		//w2 = 0xffff;
-		if(w1 || w2)
-			printf("%u %u\n", w1, w2);
 		lcd_data_write16(w1);
 		lcd_data_write16(w2);
 	}
@@ -268,9 +264,9 @@ void lcd_dump_buffer(void) {
 
 void lcd_set_pixel(int16_t x, int16_t y, uint8_t color_index) {
 	if(x >= 0 && y >= 0 && x < DISPLAY_W && y < DISPLAY_H) {
-		int index = x * DISPLAY_W + y;
+		int index = x * DISPLAY_H + y;
 		//printf("Setting index %i\n", index);
-		printf("Setting index %i to color %x\n", index, color_index);
+		//printf("Setting index %i to color %x\n", index, color_index);
 		uint8_t *dest = &screen_buffer[index / 2];
 
 		if(index & 1) { *dest = ((*dest & 0xf0) | color_index); }
@@ -341,7 +337,7 @@ void lcd_putc_freely(int16_t x, int16_t y, color_t color, char c) {
 void lcd_puts_freely(int16_t x, int16_t y, color_t color, const char *str) {
 	size_t len = strlen(str);
 	for(size_t i = 0; i < len; i++) {
-		lcd_putc_freely(x + i*DISPLAY_W, y, color, str[i]);
+		lcd_putc_freely(x + i*FONT_W, y, color, str[i]);
 	}
 }
 
