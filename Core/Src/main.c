@@ -44,6 +44,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim5;
 TIM_HandleTypeDef htim6;
 
 UART_HandleTypeDef huart3;
@@ -65,6 +66,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
 static void MX_TIM6_Init(void);
+static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -122,6 +124,8 @@ static void draw_chart_line(datapoint *data, int datapoint_count, uint16_t min_t
 }
 
 static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints_len[MAX_ONEWIRE_DEVICES], int device_cnt) {
+	htim5.Instance->CNT = 0;
+
 	uint16_t min_temp = 0xffff;
 	uint16_t max_temp = 0;
 	for(int i = 0; i < device_cnt; i++) {
@@ -152,6 +156,7 @@ static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints
 			printf("Warn: bad location (%i) with temperature %u\n", location, markings[0]);
 			continue;
 		}
+		
 		onewire_format_temperature(markings[i], axis_buffer, sizeof(axis_buffer));
 		lcd_puts_freely(0, location - FONT_H / 2, COLOR_WHITE, axis_buffer);
 
@@ -165,6 +170,15 @@ static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints
 	for(int i = 0; i < device_cnt; i++) {
 		draw_chart_line(data[i], datapoints_len[i], min_temp, max_temp, all_colors[i]);
 	}
+
+	uint32_t time_elapsed = htim5.Instance->CNT;
+	uint32_t total_datapoints = 0;
+	for(int i = 0; i < device_cnt; i++) {
+		total_datapoints += datapoints_len[i];
+	}
+
+	float time_ms = time_elapsed / 8.4e7 * 1e3;
+	printf("Time elapsed: %f with total datapoints %" PRIu32 "\n", time_ms, total_datapoints);
 
 	return 0;
 }
@@ -220,10 +234,12 @@ int main(void) {
 	MX_USART3_UART_Init();
 	MX_USB_OTG_FS_PCD_Init();
 	MX_TIM6_Init();
+	MX_TIM5_Init();
 	/* USER CODE BEGIN 2 */
 	printf("---- PROGRAM START ----\n\n");
 	lcd_init();
 	onewire_init(&htim6);
+	HAL_TIM_Base_Start(&htim5);
 
 	datapoint all_datapoints[MAX_ONEWIRE_DEVICES][MAX_CHART_DATAPOINTS];
 	int datapoints_len[MAX_ONEWIRE_DEVICES];
@@ -377,6 +393,48 @@ void SystemClock_Config(void) {
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK) {
 		Error_Handler();
 	}
+}
+
+/**
+ * @brief TIM5 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_TIM5_Init(void) {
+
+	/* USER CODE BEGIN TIM5_Init 0 */
+
+	/* USER CODE END TIM5_Init 0 */
+
+	TIM_ClockConfigTypeDef sClockSourceConfig = { 0 };
+	TIM_MasterConfigTypeDef sMasterConfig = { 0 };
+
+	/* USER CODE BEGIN TIM5_Init 1 */
+
+	/* USER CODE END TIM5_Init 1 */
+	htim5.Instance = TIM5;
+	htim5.Init.Prescaler = 0;
+	htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+	htim5.Init.Period = 4294967295;
+	htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+	htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+	if (HAL_TIM_Base_Init(&htim5) != HAL_OK) {
+		Error_Handler();
+	}
+	sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+	if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK) {
+		Error_Handler();
+	}
+	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+	if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig)
+			!= HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN TIM5_Init 2 */
+
+	/* USER CODE END TIM5_Init 2 */
+
 }
 
 /**
