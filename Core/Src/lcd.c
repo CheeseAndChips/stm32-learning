@@ -228,11 +228,9 @@ void lcd_init(void) {
 
 	lcd_clear();
 
-	HAL_Delay(4000);
-
 	lcd_set_address(0, DISPLAY_H, 0, DISPLAY_W);
 	SET_H(LCD_RS);
-	lcd_write(0xff);
+	lcd_write(0x00);
 	for(int i = 0; i < 2*DISPLAY_W*DISPLAY_H - 1; i++) {
 		SET_L(LCD_WR);
 		SET_H(LCD_WR);
