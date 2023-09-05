@@ -86,16 +86,31 @@ int __io_getchar(void) {
 }
 
 typedef struct {
-	uint16_t temp; // TODO: negatives probably don't work
-	int32_t time;
+	int16_t temp;
+	int16_t time;
 } datapoint;
 
-static int32_t map_value(int32_t in1, int32_t in2, int32_t out1, int32_t out2, int32_t x) {
-	int64_t a = x - in1;
-	int64_t b = in2 - in1;
-	int64_t c = out2 - out1;
-	int64_t d = (a*c)/b;
-	return out1 + d;
+#define MAX_CHART_DATAPOINTS 128
+#define MARGIN_TOP 10
+#define MARGIN_BOTTOM 10
+#define MARGIN_LEFT 50
+#define MARGIN_RIGHT 10
+
+static int16_t map_value(int16_t in1, int16_t in2, int16_t out1, int16_t out2, int16_t x) {
+	int16_t a = x - in1;
+	int16_t b = in2 - in1;
+	int16_t c = out2 - out1;
+	int32_t d = a*c;
+	int16_t e = d / b;
+	return out1 + e;
+}
+
+static int16_t map_value_horizontal(int16_t in1, int16_t in2, int16_t x) {
+	return map_value(in1, in2, MARGIN_LEFT, DISPLAY_W - MARGIN_RIGHT, x);
+}
+
+static int16_t map_value_vertical(int16_t in1, int16_t in2, int16_t x) {
+	return map_value(in1, in2, MARGIN_TOP, DISPLAY_H - MARGIN_BOTTOM, x);
 }
 
 static const uint16_t all_colors[] = {
@@ -103,18 +118,13 @@ static const uint16_t all_colors[] = {
 	COLOR_GREEN,
 };
 
-#define MAX_CHART_DATAPOINTS 128
-#define MARGIN_TOP 10
-#define MARGIN_BOTTOM 10
-#define MARGIN_LEFT 50
-#define MARGIN_RIGHT 10
-const int oldest_timestamp = -2 * 60 * 1000; // 2 minutes
-static void draw_chart_line(datapoint *data, int datapoint_count, uint16_t min_temp, uint16_t max_temp, uint16_t color) {
-	int32_t prev_temp = map_value(min_temp, max_temp, DISPLAY_H - MARGIN_BOTTOM, MARGIN_TOP, data[0].temp);
-	int32_t prev_time = map_value(oldest_timestamp, 0, MARGIN_LEFT, DISPLAY_W - MARGIN_RIGHT, data[0].time);
+const int16_t oldest_timestamp = -2 * 60; // 2 minutes
+static void draw_chart_line(datapoint *data, int datapoint_count, int16_t min_temp, int16_t max_temp, uint16_t color) {
+	int16_t prev_temp = map_value_vertical(max_temp, min_temp, data[0].temp);
+	int16_t prev_time = map_value_horizontal(oldest_timestamp, 0, data[0].time);
 	for(int i = 1; i < datapoint_count; i++) {
-		int32_t curr_temp = map_value(min_temp, max_temp, DISPLAY_H - MARGIN_BOTTOM, MARGIN_TOP, data[i].temp);
-		int32_t curr_time = map_value(oldest_timestamp, 0, MARGIN_LEFT, DISPLAY_W - MARGIN_RIGHT, data[i].time);
+		int16_t curr_temp = map_value_vertical(max_temp, min_temp, data[i].temp);
+		int16_t curr_time = map_value_horizontal(oldest_timestamp, 0, data[i].time);
 
 		lcd_draw_line(prev_time, prev_temp, curr_time, curr_temp, color);
 
@@ -126,8 +136,8 @@ static void draw_chart_line(datapoint *data, int datapoint_count, uint16_t min_t
 static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints_len[MAX_ONEWIRE_DEVICES], int device_cnt) {
 	htim5.Instance->CNT = 0;
 
-	uint16_t min_temp = 0xffff;
-	uint16_t max_temp = 0;
+	int16_t min_temp = 0x7fff;
+	int16_t max_temp = 0x8000;
 	for(int i = 0; i < device_cnt; i++) {
 		for(int j = 0; j < datapoints_len[i]; j++) {
 			if(data[i][j].temp < min_temp) min_temp = data[i][j].temp;
@@ -135,27 +145,22 @@ static uint8_t draw_chart(datapoint data[][MAX_CHART_DATAPOINTS], int datapoints
 		}
 	}
 
-	if(min_temp >= max_temp) { // TODO handle amplitude of 0
-		return 1;
-	}
-
+	min_temp &= 0xfff0;
+	max_temp = (max_temp & 0xfff0) + 0x10;
 	int16_t temp_amplitude = max_temp - min_temp;
-
-	int16_t markings[] = {
-		(min_temp & ~0x7) + 0x8,
-		(max_temp & ~0x7) - 0x8,
-	};
 
 	min_temp -= temp_amplitude / 4;
 	max_temp += temp_amplitude / 4;
 
+	int16_t markings[] = {
+		(min_temp & ~0x7) + 0x8,
+		((max_temp - min_temp) / 2 + min_temp) & 0xfff7,
+		(max_temp & ~0x7) - 0x8,
+	};
+
 	char axis_buffer[128];
 	for(int i = 0; i < sizeof(markings) / sizeof(markings[0]); i++) {
-		int32_t location = map_value(min_temp, max_temp, DISPLAY_H - MARGIN_BOTTOM, MARGIN_TOP, markings[i]);
-		if(!(min_temp <= markings[i] && markings[i] <= max_temp)) {
-			printf("Warn: bad location (%i) with temperature %u\n", location, markings[0]);
-			continue;
-		}
+		int16_t location = map_value_vertical(max_temp, min_temp, markings[i]);
 		
 		onewire_format_temperature(markings[i], axis_buffer, sizeof(axis_buffer));
 		lcd_puts_freely(0, location - FONT_H / 2, COLOR_WHITE, axis_buffer);
@@ -278,11 +283,13 @@ int main(void) {
 	uint32_t last_reading = 0, current_time;
 	uint32_t last_button_press = 0;
 	uint8_t show_chart = 1;
+	uint16_t readings_complete = 0;
 	while (1) {
 		if(HAL_GPIO_ReadPin(USER_Btn_GPIO_Port, USER_Btn_Pin) == GPIO_PIN_SET && last_button_press + 1000 < HAL_GetTick()) {
 			last_button_press = HAL_GetTick();
 			lcd_clear();
 			show_chart = !show_chart;
+			readings_complete = 0;
 			if(show_chart) {
 				memset(datapoints_len, 0, sizeof(datapoints_len));
 			}
@@ -315,17 +322,17 @@ int main(void) {
 				break;
 			case DISPLAY_CHART: ;
 				for(int i = 0; i < device_cnt; i++) {
-					uint16_t temp_raw = onewire_read_temperature(roms[i]);
+					int16_t temp_raw = onewire_read_temperature(roms[i]);
 
 					int current_index = datapoints_len[i]++;
 					assert(current_index < MAX_CHART_DATAPOINTS);
-					all_datapoints[i][current_index].time = current_time;
+					all_datapoints[i][current_index].time = ++readings_complete;
 					all_datapoints[i][current_index].temp = temp_raw;
 				}
 
 				for(int i = 0; i < device_cnt; i++) {
 					for(int j = 0; j < datapoints_len[i]; j++) {
-						all_datapoints[i][j].time -= current_time;
+						all_datapoints[i][j].time -= readings_complete;
 					}
 				}
 
@@ -338,7 +345,7 @@ int main(void) {
 
 				for(int i = 0; i < device_cnt; i++) {
 					for(int j = 0; j < datapoints_len[i]; j++) {
-						all_datapoints[i][j].time += current_time;
+						all_datapoints[i][j].time += readings_complete;
 					}
 				}
 
